@@ -63,6 +63,21 @@ Force it with `--type {web,mobile,cloud}` if needed.
 
 ## Install
 
+### Quick setup on Kali / Debian / Ubuntu (one command)
+
+```bash
+chmod +x install.sh
+./install.sh                # install all groups (web + mobile + cloud)
+./install.sh web            # only web tools
+./install.sh web mobile     # pick groups
+```
+
+The installer handles Kali's PEP-668 (`--break-system-packages`) automatically,
+updates nuclei templates, and skips anything it can't install (vulnscan just
+skips missing tools at scan time).
+
+### Manual install
+
 Core needs only **Python 3.9+**. `requests` is optional (falls back to urllib):
 
 ```bash
