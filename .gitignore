@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Scan output
+report-*/
+report/
+*.log
+
+# Test fixtures
+_fixtures/
+_testserver.py

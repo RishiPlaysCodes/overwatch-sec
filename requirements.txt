@@ -1,0 +1,2 @@
+# Core is stdlib-only (Python 3.9+). requests is optional but recommended.
+requests>=2.28
