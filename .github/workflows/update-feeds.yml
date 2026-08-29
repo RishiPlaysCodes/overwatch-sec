@@ -2,7 +2,7 @@ name: Update CVE feeds
 
 # Keeps vulnscan's vulnerability data current WITHOUT any local session.
 # This job runs on GitHub's infrastructure on a schedule, so it works even when
-# your machine (and Kiro) is completely off. It downloads only public feed DATA
+# your machine is completely off. It downloads only public feed DATA
 # (CISA KEV + NVD) and commits the refreshed files back to the repo.
 
 on:

@@ -38,6 +38,73 @@ first.
 
 ---
 
+## 🐉 Kali Linux — full workflow (step by step)
+
+Copy-paste in order. Most tools ship with Kali already; the installer grabs the rest.
+
+**Step 1 — Get the code**
+```bash
+git clone https://github.com/RishiPlaysCodes/script-test-case.git
+cd script-test-case
+```
+
+**Step 2 — Install everything (one command)**
+```bash
+chmod +x install.sh deploy/install-scheduler.sh feeds/update_feeds.py
+./install.sh                     # web + mobile + cloud + code + network tools
+# or pick groups:  ./install.sh web network code
+```
+If pip complains about "externally-managed-environment", the installer already
+passes `--break-system-packages`; for manual pip use add that flag yourself.
+
+**Step 3 — Pull fresh vulnerability data (CISA KEV + NVD)**
+```bash
+python3 feeds/update_feeds.py            # fills data/ so CVE enrichment is current
+```
+
+**Step 4 — Run a scan (pick your target type — it auto-detects)**
+```bash
+python3 vulnscan.py https://your-site.com        # website
+python3 vulnscan.py 192.168.1.10                  # network / host
+python3 vulnscan.py 192.168.1.0/24                # whole subnet
+python3 vulnscan.py ./your-app.apk                # mobile app
+python3 vulnscan.py ./source-code-folder          # code + dependencies + secrets
+python3 vulnscan.py nginx:1.21                     # container image
+python3 vulnscan.py ./terraform                    # cloud IaC
+python3 vulnscan.py aws                            # live cloud account
+```
+It asks you to confirm authorization — type `I AM AUTHORIZED`. On your own
+assets / in CI, add `--yes` to skip the prompt.
+
+**Step 5 — Read the report**
+```bash
+ls report-*/                       # a timestamped folder per scan
+xdg-open report-*/report.md        # or: cat report-*/report.md
+```
+Each finding shows: severity (incl. CRITICAL), CWE + OWASP, evidence, *what it
+is*, *attack scenario*, and *fix / patch*. Actively-exploited (CISA KEV) issues
+are flagged "patch first".
+
+**Step 6 (optional) — Auto-refresh the CVE data on this machine**
+```bash
+./deploy/install-scheduler.sh          # systemd daily timer (or --cron)
+```
+
+**Handy flags**
+```bash
+--type web|mobile|cloud|network|code|container   # force the profile
+--skip nuclei,sqlmap                              # skip specific tools
+--out my-report                                   # custom output folder
+--yes                                             # skip auth prompt (owned assets)
+```
+
+**One-liner quick start**
+```bash
+git clone https://github.com/RishiPlaysCodes/script-test-case.git && cd script-test-case && chmod +x install.sh && ./install.sh && python3 feeds/update_feeds.py && python3 vulnscan.py https://your-site.com
+```
+
+---
+
 ## What it covers
 
 ### 🌐 Web (OWASP Top 10 / CWE Top 25)
@@ -169,7 +236,7 @@ Add coverage by adding an entry to `knowledgebase.py` and emitting it via
 
 The *code* rarely changes; the **vulnerability data** does. A pipeline refreshes
 that data on a schedule so vulnscan stays current on its own — **even when your
-machine (and Kiro) is off**.
+machine is off**.
 
 `feeds/update_feeds.py` downloads public feed data into `data/`:
 - `kev.json` — CISA Known Exploited Vulnerabilities (actively-exploited CVEs)

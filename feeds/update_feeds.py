@@ -3,7 +3,7 @@
 feeds/update_feeds.py — refresh vulnscan's vulnerability data feeds.
 
 This is the job a scheduler (GitHub Actions / cron / systemd timer) runs so the
-scanner stays current WITHOUT a live Kiro session — it only downloads public
+scanner stays current WITHOUT any manual run — it only downloads public
 vulnerability *data*, it never runs exploits.
 
 What it refreshes into <repo>/data/:
