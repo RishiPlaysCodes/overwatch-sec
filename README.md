@@ -165,6 +165,42 @@ scanner_container.py # trivy/grype image CVE scanning
 Add coverage by adding an entry to `knowledgebase.py` and emitting it via
 `common.finding("<id>", "<evidence>")` from the relevant scanner.
 
+## Staying current — self-updating feeds (no live session needed)
+
+The *code* rarely changes; the **vulnerability data** does. A pipeline refreshes
+that data on a schedule so vulnscan stays current on its own — **even when your
+machine (and Kiro) is off**.
+
+`feeds/update_feeds.py` downloads public feed data into `data/`:
+- `kev.json` — CISA Known Exploited Vulnerabilities (actively-exploited CVEs)
+- `nvd_recent.json` — recently-modified NVD CVEs with CVSS
+- and refreshes `nuclei` / `trivy` / `grype` local DBs if installed
+
+`cve_intel.py` reads `data/` first, so enrichment works **fully offline**.
+
+Two ways to schedule it (use either or both):
+
+**1. GitHub Actions (runs in the cloud — works when your PC is off)**
+`.github/workflows/update-feeds.yml` runs daily on GitHub's servers, refreshes
+the feeds, and commits them back to the repo. Nothing to install; enable Actions
+and (optionally) trigger it manually from the **Actions** tab. Adjust the `cron:`
+for a shorter interval if you want it fresher.
+
+**2. Local systemd timer / cron (runs when this machine is on)**
+```bash
+./deploy/install-scheduler.sh          # systemd user timer (daily), or:
+./deploy/install-scheduler.sh --cron   # cron fallback
+```
+Run a refresh manually any time:
+```bash
+python3 feeds/update_feeds.py            # KEV + NVD (+ tool DBs)
+python3 feeds/update_feeds.py --kev      # just the actively-exploited list
+```
+
+> Practical note: "real-time" here means *scheduled* (e.g. daily/hourly) — CISA
+> KEV and NVD publish in batches, not continuously, so a daily refresh keeps you
+> effectively current.
+
 ## Notes
 - Findings are **indicators** — validate manually before acting/reporting.
 - CVE enrichment is **offline-safe**: if feeds are unreachable, the scan still
