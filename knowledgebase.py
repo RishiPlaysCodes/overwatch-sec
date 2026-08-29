@@ -20,7 +20,7 @@ duplicating text across web / mobile / cloud scanners.
 
 from __future__ import annotations
 
-SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
+SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 # ---------------------------------------------------------------------------
 # KB: id -> entry
@@ -315,6 +315,102 @@ KB: dict[str, dict] = {
         "attack": "Attacker operates without leaving traces, and the breach goes undetected and un-investigable.",
         "patch": "Enable multi-region audit logging to an immutable, access-controlled bucket with alerting on "
         "sensitive events.",
+    },
+
+    # ============================ NETWORK / HOST / INFRA ===================
+    "network.vuln_service": {
+        "cwe": "CWE-1035",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Vulnerable network service (nmap NSE)",
+        "description": "An nmap 'vuln' NSE script flagged a network service as vulnerable to a known issue.",
+        "attack": "Attacker targets the exact service/version with the matching public exploit to gain access or "
+        "crash/abuse the service.",
+        "patch": "Patch/upgrade the affected service to a fixed version, restrict network exposure, and re-scan to "
+        "confirm remediation.",
+    },
+    "network.exposed_service": {
+        "cwe": "CWE-668",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "info",
+        "title": "Exposed network service",
+        "description": "An open port and its service/version were discovered on the host.",
+        "attack": "Attacker maps the attack surface and probes exposed services (DB, RDP, SMB, admin panels) for "
+        "default creds or version CVEs.",
+        "patch": "Close unused ports, firewall/allow-list management services, and put sensitive services behind a "
+        "VPN/bastion.",
+    },
+    "network.exploit_known": {
+        "cwe": "CWE-1035",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Component with a known public exploit / actively exploited CVE",
+        "description": "A detected component matches a CVE that is actively exploited (CISA KEV) or has a public "
+        "exploit entry.",
+        "attack": "Because a working public exploit exists (and may be used in real-world attacks), an attacker can "
+        "compromise the component with minimal effort. These are top-priority.",
+        "patch": "Treat as urgent: apply the vendor patch immediately, isolate the host until patched, and verify "
+        "against the CVE advisory.",
+    },
+
+    # ============================ SOURCE CODE / DEPENDENCIES (SCA) =========
+    "code.dep_cve": {
+        "cwe": "CWE-1035",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Vulnerable dependency (SCA)",
+        "description": "A third-party library/package in the project has a known CVE.",
+        "attack": "Attacker exploits the known flaw in the bundled dependency (e.g. RCE/deserialization) via input "
+        "that reaches the vulnerable code path.",
+        "patch": "Upgrade to the fixed version indicated by the advisory; pin versions, enable Dependabot/renovate, "
+        "and track an SBOM.",
+    },
+    "code.secret": {
+        "cwe": "CWE-798",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "Secret committed in source",
+        "description": "A credential, token, or private key was found committed in the source tree/history.",
+        "attack": "Attacker scrapes the repo (or its git history) and uses the leaked secret to access the backend, "
+        "cloud account, or signing infrastructure.",
+        "patch": "Revoke and rotate the secret immediately, remove it from history (git filter-repo/BFG), and move "
+        "secrets to a vault / environment injection.",
+    },
+    "code.sast": {
+        "cwe": "CWE-710",
+        "owasp": "A04:2021 Insecure Design",
+        "severity": "medium",
+        "title": "Insecure code pattern (SAST)",
+        "description": "Static analysis flagged an insecure coding pattern (e.g. injection sink, weak crypto, unsafe "
+        "deserialization).",
+        "attack": "Depending on the sink, an attacker supplies crafted input to trigger injection, RCE, or data "
+        "exposure through the flagged code path.",
+        "patch": "Refactor the flagged pattern per the analyzer's guidance (parameterize, validate, use safe APIs) "
+        "and add a regression test.",
+    },
+
+    # ============================ CONTAINER IMAGES =========================
+    "container.cve": {
+        "cwe": "CWE-1035",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Vulnerable OS/package in container image",
+        "description": "The container image ships OS or language packages with known CVEs.",
+        "attack": "Attacker exploits a vulnerable package inside a running container to escalate, break out, or move "
+        "laterally within the cluster.",
+        "patch": "Rebuild on an updated/minimal base image, upgrade affected packages, and gate builds on an image "
+        "scan (fail on High/Critical).",
+    },
+    "container.misconfig": {
+        "cwe": "CWE-250",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Container misconfiguration",
+        "description": "The image/Dockerfile has a risky setting (runs as root, secrets in layers, no USER, etc.).",
+        "attack": "Running as root magnifies the impact of any in-container compromise, easing container breakout "
+        "and host access.",
+        "patch": "Add a non-root USER, drop capabilities, avoid embedding secrets in layers, and use read-only root "
+        "filesystems.",
     },
 }
 
