@@ -1,0 +1,51 @@
+name: Update CVE feeds
+
+# Keeps vulnscan's vulnerability data current WITHOUT any local session.
+# This job runs on GitHub's infrastructure on a schedule, so it works even when
+# your machine (and Kiro) is completely off. It downloads only public feed DATA
+# (CISA KEV + NVD) and commits the refreshed files back to the repo.
+
+on:
+  schedule:
+    # Every day at 05:17 UTC. CISA KEV / NVD publish in batches, so daily is
+    # plenty; bump to a shorter cron (e.g. "*/6 * * *") if you want it fresher.
+    - cron: "17 5 * * *"
+  workflow_dispatch: {}   # allow manual "Run workflow" from the Actions tab
+
+# Only ever read/write repo contents with the built-in token; nothing else.
+permissions:
+  contents: write
+
+concurrency:
+  group: update-feeds
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Refresh feeds (CISA KEV + NVD recent)
+        run: python3 feeds/update_feeds.py --nvd-days 7 --no-tools
+
+      - name: Commit refreshed feeds
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No feed changes."
+          else
+            git commit -m "chore(feeds): refresh CVE feeds [skip ci]"
+            git push
+          fi

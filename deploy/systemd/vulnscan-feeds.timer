@@ -1,0 +1,12 @@
+[Unit]
+Description=Run vulnscan feed refresh on a schedule
+Documentation=https://github.com/RishiPlaysCodes/script-test-case
+
+[Timer]
+# Run daily; also catch up if the machine was off at the scheduled time.
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

@@ -43,6 +43,14 @@ CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "vulnscan")
 KEV_CACHE = os.path.join(CACHE_DIR, "kev.json")
 KEV_TTL = 24 * 3600  # refresh KEV at most once/day
 
+# Pipeline-refreshed feeds committed to the repo (see feeds/update_feeds.py).
+# These let the scanner use fresh KEV/NVD data even fully offline.
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+KEV_DATA = os.path.join(DATA_DIR, "kev.json")
+NVD_DATA = os.path.join(DATA_DIR, "nvd_recent.json")
+
+_nvd_local: dict | None = None
+
 CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)
 
 _kev_set: set[str] | None = None
@@ -77,7 +85,16 @@ def _load_kev() -> set[str]:
     if _kev_set is not None:
         return _kev_set
 
-    # Disk cache
+    # 1) Pipeline-refreshed repo feed (data/kev.json) — preferred, works offline.
+    try:
+        if os.path.isfile(KEV_DATA):
+            with open(KEV_DATA) as fh:
+                _kev_set = {c.upper() for c in json.load(fh)}
+                return _kev_set
+    except Exception:
+        pass
+
+    # 2) Per-user disk cache
     try:
         if os.path.isfile(KEV_CACHE) and (time.time() - os.path.getmtime(KEV_CACHE)) < KEV_TTL:
             with open(KEV_CACHE) as fh:
@@ -108,11 +125,38 @@ def is_actively_exploited(cve_id: str) -> bool:
     return cve_id.upper() in _load_kev()
 
 
+def _load_nvd_local() -> dict:
+    """Load the pipeline-refreshed NVD recent feed (data/nvd_recent.json)."""
+    global _nvd_local
+    if _nvd_local is not None:
+        return _nvd_local
+    try:
+        if os.path.isfile(NVD_DATA):
+            with open(NVD_DATA) as fh:
+                _nvd_local = json.load(fh)
+                return _nvd_local
+    except Exception:
+        pass
+    _nvd_local = {}
+    return _nvd_local
+
+
 def _nvd_lookup(cve_id: str) -> dict:
     cid = cve_id.upper()
     if cid in _nvd_cache:
         return _nvd_cache[cid]
     result = {"cvss": None, "severity": None, "summary": None}
+
+    # 1) Pipeline-refreshed local NVD feed (offline-capable).
+    local = _load_nvd_local().get(cid)
+    if local:
+        result["cvss"] = local.get("cvss")
+        result["severity"] = local.get("severity") or (
+            _sev_from_score(local["cvss"]) if local.get("cvss") is not None else None)
+        _nvd_cache[cid] = result
+        return result
+
+    # 2) Live NVD API (only if online).
     data = _http_json(NVD_URL.format(cid), timeout=12)
     try:
         vulns = data.get("vulnerabilities", []) if data else []
