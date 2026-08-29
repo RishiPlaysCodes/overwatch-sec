@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+"""
+knowledgebase.py — Vulnerability knowledge base.
+
+Every finding the scanner can raise is defined here ONCE, keyed by a short id.
+Each entry carries the mappings and the human explanation the report needs:
+
+  cwe            : CWE id(s) (also covers SANS/CWE Top 25 where relevant)
+  owasp          : OWASP category (Web Top 10 / Mobile Top 10 / Cloud)
+  severity       : high | medium | low | info
+  title          : short human title
+  description    : what the issue IS (samajhne ke liye)
+  attack         : how an attacker would exploit it (attack scenario)
+  patch          : how to fix it (remediation / patch)
+
+Scanners emit findings by id + evidence; the reporter enriches them from here.
+This keeps explanations consistent and lets us cover a lot of ground without
+duplicating text across web / mobile / cloud scanners.
+"""
+
+from __future__ import annotations
+
+SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
+
+# ---------------------------------------------------------------------------
+# KB: id -> entry
+# ---------------------------------------------------------------------------
+KB: dict[str, dict] = {
+    # ========================= WEB (OWASP Top 10 / CWE Top 25) =============
+    "web.sqli": {
+        "cwe": "CWE-89",
+        "owasp": "A03:2021 Injection",
+        "severity": "high",
+        "title": "SQL Injection",
+        "description": "User input is concatenated into an SQL query without parameterization, "
+        "so an attacker can alter the query's logic.",
+        "attack": "Attacker submits a crafted parameter like `' OR '1'='1` or a UNION/boolean/time-based "
+        "payload. sqlmap automates this to dump databases, bypass login, or (with stacked queries) "
+        "write files / run OS commands.",
+        "patch": "Use parameterized queries / prepared statements (never string concatenation). "
+        "Apply least-privilege DB accounts, an allow-list input validation, and an ORM where possible.",
+    },
+    "web.xss.reflected": {
+        "cwe": "CWE-79",
+        "owasp": "A03:2021 Injection (XSS)",
+        "severity": "medium",
+        "title": "Reflected Cross-Site Scripting (XSS)",
+        "description": "Request input is echoed back into the HTML response without output encoding.",
+        "attack": "Attacker crafts a URL containing `<script>...</script>` and tricks a victim into clicking it. "
+        "The script runs in the victim's session — stealing cookies/tokens, performing actions as the user, "
+        "or keylogging.",
+        "patch": "Context-aware output encoding (HTML/JS/attribute/URL), a strict Content-Security-Policy, "
+        "and framework auto-escaping (e.g. Jinja, React). Validate and sanitize input server-side.",
+    },
+    "web.header.csp": {
+        "cwe": "CWE-693",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Missing Content-Security-Policy",
+        "description": "No CSP header, so the browser has no policy restricting where scripts/resources load from.",
+        "attack": "If any XSS sink exists, absence of CSP means injected scripts and external payloads execute "
+        "freely; also enables data exfiltration to attacker domains.",
+        "patch": "Set a restrictive `Content-Security-Policy` (e.g. `default-src 'self'; object-src 'none'; "
+        "frame-ancestors 'none'`). Avoid `unsafe-inline`/`unsafe-eval`; use nonces/hashes.",
+    },
+    "web.header.hsts": {
+        "cwe": "CWE-319",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "medium",
+        "title": "Missing HTTP Strict-Transport-Security",
+        "description": "No HSTS header, so browsers may connect over plaintext HTTP.",
+        "attack": "On a shared/hostile network, an attacker performs SSL-strip / man-in-the-middle, downgrading "
+        "the victim to HTTP and intercepting credentials and session cookies.",
+        "patch": "Send `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` over HTTPS and "
+        "redirect all HTTP to HTTPS.",
+    },
+    "web.header.xfo": {
+        "cwe": "CWE-1021",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Missing clickjacking protection (X-Frame-Options / frame-ancestors)",
+        "description": "Page can be embedded in an iframe by any site.",
+        "attack": "Attacker frames the site invisibly over a decoy UI (clickjacking) so the victim's clicks trigger "
+        "sensitive actions (transfers, permission grants) without realizing it.",
+        "patch": "Set `X-Frame-Options: DENY` (or `SAMEORIGIN`) and/or CSP `frame-ancestors 'none'`.",
+    },
+    "web.header.nosniff": {
+        "cwe": "CWE-16",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "low",
+        "title": "Missing X-Content-Type-Options: nosniff",
+        "description": "Browser may MIME-sniff responses instead of trusting the declared Content-Type.",
+        "attack": "An uploaded/user-controlled file served with a benign type can be sniffed and executed as HTML/JS, "
+        "leading to stored XSS.",
+        "patch": "Send `X-Content-Type-Options: nosniff` on all responses.",
+    },
+    "web.header.referrer": {
+        "cwe": "CWE-200",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "low",
+        "title": "Missing Referrer-Policy",
+        "description": "Full URLs (possibly with tokens) may be leaked in the Referer header to third parties.",
+        "attack": "Sensitive query-string data (session ids, reset tokens) leaks to external analytics/ad domains "
+        "via Referer.",
+        "patch": "Set `Referrer-Policy: strict-origin-when-cross-origin` or `no-referrer`.",
+    },
+    "web.header.permissions": {
+        "cwe": "CWE-693",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "low",
+        "title": "Missing Permissions-Policy",
+        "description": "Powerful browser features (camera, mic, geolocation) are not restricted.",
+        "attack": "A compromised third-party script or XSS can silently access device features.",
+        "patch": "Set a `Permissions-Policy` disabling unused features, e.g. `geolocation=(), camera=(), microphone=()`.",
+    },
+    "web.cookie.flags": {
+        "cwe": "CWE-614",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Insecure cookie flags",
+        "description": "Session cookie missing Secure / HttpOnly / SameSite attributes.",
+        "attack": "Missing HttpOnly lets XSS read the cookie; missing Secure lets it leak over HTTP; missing "
+        "SameSite enables CSRF. Combined, the session can be hijacked.",
+        "patch": "Set cookies with `Secure; HttpOnly; SameSite=Lax` (or `Strict`). Scope with `Path`/`Domain` and "
+        "short expiry.",
+    },
+    "web.infoleak": {
+        "cwe": "CWE-200",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "low",
+        "title": "Technology/version disclosure",
+        "description": "Response headers reveal server software and versions (Server, X-Powered-By).",
+        "attack": "Attacker fingerprints exact versions and looks up matching public CVEs/exploits to target the stack.",
+        "patch": "Remove/obfuscate version banners (`server_tokens off;`, unset `X-Powered-By`).",
+    },
+    "web.fileupload": {
+        "cwe": "CWE-434",
+        "owasp": "A04:2021 Insecure Design / A05 Misconfiguration",
+        "severity": "medium",
+        "title": "Unrestricted file upload surface",
+        "description": "A file-upload endpoint exists; if server-side validation is weak it is dangerous.",
+        "attack": "Attacker uploads a web shell (e.g. `.php`, `.jsp`) or a polyglot file; if stored in a web-served "
+        "path and executed, they gain remote code execution.",
+        "patch": "Validate type by content (magic bytes) not extension, store outside webroot, randomize names, "
+        "serve with `Content-Disposition: attachment`, scan with AV, and cap size.",
+    },
+    "web.tls.weak": {
+        "cwe": "CWE-326",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "high",
+        "title": "Weak TLS/SSL configuration",
+        "description": "Deprecated protocols/ciphers (SSLv3, TLS 1.0/1.1, RC4) or expired/invalid certificate.",
+        "attack": "Attacker exploits protocol/cipher weaknesses (POODLE, BEAST) or an invalid cert to intercept or "
+        "decrypt traffic via MITM.",
+        "patch": "Enable only TLS 1.2/1.3 with strong ciphers (AEAD), valid cert with full chain, OCSP stapling, and "
+        "HSTS.",
+    },
+    "web.open_port": {
+        "cwe": "CWE-668",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "info",
+        "title": "Exposed network service",
+        "description": "An open port/service was discovered and its version fingerprinted.",
+        "attack": "Attacker maps the attack surface and probes exposed services (DB, admin, RDP) for default creds "
+        "or version-specific CVEs.",
+        "patch": "Close unused ports, firewall/allow-list management services, put behind VPN, and patch service "
+        "versions.",
+    },
+    "web.cve": {
+        "cwe": "CWE-1035",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Known CVE / vulnerable component",
+        "description": "A scanner template matched a known CVE or a vulnerable/outdated component.",
+        "attack": "Attacker uses the public exploit/PoC for the matched CVE to compromise the component directly.",
+        "patch": "Upgrade the affected component to a fixed version; apply vendor advisories; track with SCA/SBOM.",
+    },
+
+    # ============================ MOBILE (OWASP MASVS/Mobile Top 10) =======
+    "mobile.cleartext": {
+        "cwe": "CWE-319",
+        "owasp": "M5: Insecure Communication",
+        "severity": "high",
+        "title": "Cleartext traffic allowed",
+        "description": "App manifest allows cleartext (HTTP) traffic (`usesCleartextTraffic=true` / permissive "
+        "network security config).",
+        "attack": "On any shared network the attacker MITMs the app, reading/modifying API traffic, tokens, and PII.",
+        "patch": "Disable cleartext (`android:usesCleartextTraffic=\"false\"`), enforce a strict network security "
+        "config, and pin certificates for sensitive APIs.",
+    },
+    "mobile.exported": {
+        "cwe": "CWE-926",
+        "owasp": "M8: Security Misconfiguration",
+        "severity": "medium",
+        "title": "Exported component without permission",
+        "description": "An Activity/Service/Receiver/Provider is exported and reachable by other apps without a "
+        "signature/permission guard.",
+        "attack": "A malicious app on the device sends intents to the exported component to trigger privileged "
+        "actions, leak data, or bypass authentication screens.",
+        "patch": "Set `android:exported=\"false\"` unless required; protect with signature-level permissions and "
+        "validate all incoming intents.",
+    },
+    "mobile.debuggable": {
+        "cwe": "CWE-489",
+        "owasp": "M8: Security Misconfiguration",
+        "severity": "high",
+        "title": "Debuggable build",
+        "description": "App manifest has `android:debuggable=\"true\"`.",
+        "attack": "Attacker with device access attaches a debugger (jdb) to the running app, inspects memory, and "
+        "extracts secrets or manipulates logic.",
+        "patch": "Ship release builds with `debuggable=false`; strip debug flags in the release build type.",
+    },
+    "mobile.backup": {
+        "cwe": "CWE-530",
+        "owasp": "M9: Insecure Data Storage",
+        "severity": "medium",
+        "title": "Application backup allowed",
+        "description": "`android:allowBackup=\"true\"` lets app data be extracted via adb backup.",
+        "attack": "With USB debugging, an attacker runs `adb backup` to pull the app's private data (tokens, DBs) "
+        "off the device.",
+        "patch": "Set `android:allowBackup=\"false\"` or define a strict backup rules set excluding sensitive files.",
+    },
+    "mobile.secrets": {
+        "cwe": "CWE-798",
+        "owasp": "M1: Improper Credential Usage / M10 Extraneous Functionality",
+        "severity": "high",
+        "title": "Hardcoded secret / API key",
+        "description": "A credential, API key, or private key is embedded in the app package.",
+        "attack": "Attacker unzips/decompiles the APK/IPA (apktool/jadx) and extracts the secret, then abuses the "
+        "backend API, cloud account, or signing key.",
+        "patch": "Never ship secrets in the client; fetch short-lived tokens from a backend, use the platform "
+        "keystore/keychain, and rotate any exposed keys immediately.",
+    },
+    "mobile.perms": {
+        "cwe": "CWE-250",
+        "owasp": "M8: Security Misconfiguration",
+        "severity": "low",
+        "title": "Excessive / dangerous permissions",
+        "description": "App requests broad or dangerous permissions beyond its apparent need.",
+        "attack": "If the app is compromised (or malicious), the granted permissions expand impact — reading SMS, "
+        "location tracking, contact exfiltration.",
+        "patch": "Request the minimum permissions, justify each, and prefer runtime permissions with clear scope.",
+    },
+
+    # ============================ CLOUD (OWASP Cloud / CIS) ================
+    "cloud.public_bucket": {
+        "cwe": "CWE-732",
+        "owasp": "Cloud: Insecure Storage / A01 Broken Access Control",
+        "severity": "high",
+        "title": "Publicly accessible storage bucket",
+        "description": "Object storage (S3/GCS/Blob) is world-readable or world-writable.",
+        "attack": "Attacker enumerates the bucket and downloads all objects (data breach) or uploads malicious "
+        "content; public write can enable defacement or malware hosting.",
+        "patch": "Block public access at account+bucket level, use least-privilege bucket policies/IAM, and enable "
+        "access logging + encryption at rest.",
+    },
+    "cloud.open_sg": {
+        "cwe": "CWE-284",
+        "owasp": "Cloud: Broken Access Control",
+        "severity": "high",
+        "title": "Security group open to the world (0.0.0.0/0)",
+        "description": "A firewall/security-group rule exposes a sensitive port to the entire internet.",
+        "attack": "Attacker directly reaches exposed SSH/RDP/DB ports and brute-forces credentials or hits "
+        "version-specific CVEs.",
+        "patch": "Restrict ingress to known CIDRs/bastion, close DB/admin ports publicly, and use a VPN or "
+        "zero-trust access.",
+    },
+    "cloud.unencrypted": {
+        "cwe": "CWE-311",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "medium",
+        "title": "Unencrypted data store / volume",
+        "description": "A database, volume, or bucket lacks encryption at rest.",
+        "attack": "If the underlying storage/snapshot is exposed or stolen, data is readable in plaintext.",
+        "patch": "Enable encryption at rest (KMS-managed keys), enforce via policy (SCP/Config rules), and encrypt "
+        "snapshots/backups.",
+    },
+    "cloud.iam_wildcard": {
+        "cwe": "CWE-269",
+        "owasp": "A01:2021 Broken Access Control",
+        "severity": "high",
+        "title": "Over-permissive IAM policy (wildcard)",
+        "description": "An IAM policy grants `Action:*` and/or `Resource:*` (admin-equivalent).",
+        "attack": "If any principal/key with this policy is phished or leaked, the attacker gains full account "
+        "control — privilege escalation and lateral movement.",
+        "patch": "Apply least privilege: scope actions and resources, use permission boundaries, and review with "
+        "IAM Access Analyzer.",
+    },
+    "cloud.public_ip": {
+        "cwe": "CWE-668",
+        "owasp": "Cloud: Security Misconfiguration",
+        "severity": "medium",
+        "title": "Instance/DB with public IP",
+        "description": "A compute instance or managed DB is directly internet-exposed.",
+        "attack": "Attacker scans the public IP, fingerprints services, and attacks exposed management/DB ports.",
+        "patch": "Place workloads in private subnets, use NAT/bastion for egress, and expose only via a load "
+        "balancer/WAF.",
+    },
+    "cloud.no_mfa": {
+        "cwe": "CWE-308",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "MFA not enforced on privileged accounts",
+        "description": "Root/admin or IAM users lack multi-factor authentication.",
+        "attack": "A single leaked/phished password gives the attacker full console access with no second factor.",
+        "patch": "Enforce MFA for all human accounts (especially root/admin), prefer SSO/federation, and disable "
+        "unused long-lived access keys.",
+    },
+    "cloud.logging_off": {
+        "cwe": "CWE-778",
+        "owasp": "A09:2021 Security Logging & Monitoring Failures",
+        "severity": "medium",
+        "title": "Audit logging disabled",
+        "description": "Cloud audit logging (CloudTrail / Cloud Audit Logs / Activity Log) is off or incomplete.",
+        "attack": "Attacker operates without leaving traces, and the breach goes undetected and un-investigable.",
+        "patch": "Enable multi-region audit logging to an immutable, access-controlled bucket with alerting on "
+        "sensitive events.",
+    },
+}
+
+
+def get(finding_id: str) -> dict:
+    """Return the KB entry for an id, or a safe generic fallback."""
+    return KB.get(
+        finding_id,
+        {
+            "cwe": "N/A",
+            "owasp": "N/A",
+            "severity": "info",
+            "title": finding_id,
+            "description": "See evidence.",
+            "attack": "N/A",
+            "patch": "Review manually.",
+        },
+    )
