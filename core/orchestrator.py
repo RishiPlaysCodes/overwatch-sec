@@ -114,7 +114,15 @@ def _skip_set(kind: str, mode: str, policy: Policy, scope_file: str | None) -> s
 def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         policy: Policy | None = None, scope: Scope | None = None,
         outdir: str = "report", scope_file: str | None = None,
-        secrets: list[str] | None = None, force_kind: str | None = None) -> Assessment:
+        secrets: list[str] | None = None, force_kind: str | None = None,
+        triage_store=None, load_plugins: bool = True) -> Assessment:
+    # extensibility: load drop-in plugins before detection/registry use
+    if load_plugins:
+        try:
+            from . import plugins
+            plugins.load_plugins()
+        except Exception:
+            pass
     policy = policy or Policy.for_profile(profile, mode)
     desc = detect(target)
     kind = force_kind or desc["kind"]
@@ -182,6 +190,13 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         findings.append(f)
     findings = dedupe(findings)
 
+    # safe, policy-gated validation (upgrades detected -> validated / not_exploitable)
+    try:
+        from validation import validator
+        validator.validate(findings, policy, coverage=cov)
+    except Exception as e:
+        cov.errored("validation", detail=str(e)[:150])
+
     # attack-path correlation + MITRE mapping
     try:
         from attack_paths import correlation, mitre
@@ -191,6 +206,15 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
     except Exception as e:
         cov.errored("attack_paths", detail=str(e)[:150])
 
+    # overlay persistent triage decisions (false_positive / accepted_risk / fixed)
+    if triage_store is not None:
+        try:
+            applied = triage_store.apply(findings)
+            if applied:
+                cov.ran("triage", detail=f"applied {applied} stored decision(s)")
+        except Exception as e:
+            cov.errored("triage", detail=str(e)[:120])
+
     cov.checks_run = len(raw.get("findings", []))
     findings.sort(key=sort_key)
     assessment.findings = findings
@@ -198,7 +222,11 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
 
 
 def _guess_asset(d: dict, target: str) -> str:
-    """Best-effort asset extraction from a legacy finding's evidence."""
+    """
+    Best-effort asset for a legacy finding. Prefer a URL/domain found in the
+    evidence; otherwise fall back to the target *preserving its scheme* so
+    validators can safely re-request it (http vs https matters).
+    """
     import re
     ev = d.get("evidence", "")
     m = re.search(r"https?://[^\s'\"]+", ev)
@@ -207,4 +235,4 @@ def _guess_asset(d: dict, target: str) -> str:
     m = re.search(r"\b([a-z0-9.-]+\.[a-z]{2,})\b", ev, re.I)
     if m:
         return m.group(1)
-    return re.sub(r"^https?://", "", target).split("/")[0]
+    return target

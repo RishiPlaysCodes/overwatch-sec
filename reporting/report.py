@@ -19,25 +19,34 @@ _SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 _SEV_WEIGHT = {"critical": 25, "high": 12, "medium": 5, "low": 1, "info": 0}
 
 
+_MUTED = {"false_positive", "fixed", "accepted_risk"}
+
+
+def _active(findings):
+    """Findings that still count toward risk (exclude triaged-away statuses)."""
+    return [f for f in findings if f.status not in _MUTED]
+
+
 def security_score(findings) -> int:
-    """0 (worst) .. 100 (clean). Deduct per finding, KEV hits harder."""
+    """0 (worst) .. 100 (clean). Deduct per ACTIVE finding, KEV hits harder."""
     penalty = 0
-    for f in findings:
+    for f in _active(findings):
         penalty += _SEV_WEIGHT.get(f.severity, 0) * (1.6 if f.kev else 1.0)
     return max(0, round(100 - min(penalty, 100)))
 
 
 def _counts(findings) -> dict:
     c = {k: 0 for k in _SEV_ORDER}
-    for f in findings:
+    for f in _active(findings):
         c[f.severity] = c.get(f.severity, 0) + 1
     return c
 
 
 def summarize(assessment) -> dict:
     fs = assessment.findings
+    active = _active(fs)
     counts = _counts(fs)
-    kev = [f for f in fs if f.kev]
+    kev = [f for f in active if f.kev]
     return {
         "target": assessment.target,
         "kind": assessment.kind,
@@ -45,7 +54,8 @@ def summarize(assessment) -> dict:
         "mode": assessment.mode,
         "security_score": security_score(fs),
         "counts": counts,
-        "total": len(fs),
+        "total": len(active),
+        "muted": len(fs) - len(active),
         "kev_count": len(kev),
         "attack_paths": len(assessment.attack_paths),
         "top_attack_risk": (assessment.attack_paths[0]["risk_score"] if assessment.attack_paths else 0),
@@ -109,14 +119,27 @@ def write_markdown(assessment, path: str) -> str:
     L.append("## Attack paths\n")
     if not assessment.attack_paths:
         L.append("_No multi-step attack paths correlated._\n")
-    for i, p in enumerate([p for p in assessment.attack_paths if p["length"] > 1][:10], 1):
-        L.append(f"**Path {i}** — asset `{p['asset']}` — risk **{p['risk_score']}/100**"
-                 + (" — entry point" if p["entry"] else ""))
+    for i, p in enumerate(assessment.attack_paths[:10], 1):
+        obj = f" → 🎯 **{p['objective']}**" if p.get("objective") else ""
+        multi = " (multi-asset / lateral)" if p.get("multi_asset") else ""
+        L.append(f"**Path {i}** — asset `{p['asset']}` — risk **{p['risk_score']}/100**{obj}{multi}")
         L.append("")
         L.append("```")
         L.append(p["chain"])
         L.append("```")
         L.append("")
+    # embeddable attack graph (Mermaid)
+    try:
+        from attack_paths import graph as _graph
+        mm = _graph.to_mermaid(assessment.findings, assessment.target)
+        if mm.count("\n") > 1:
+            L.append("### Attack graph\n")
+            L.append("```mermaid")
+            L.append(mm)
+            L.append("```")
+            L.append("")
+    except Exception:
+        pass
 
     L.append("## Findings\n")
     if not fs:
@@ -189,6 +212,18 @@ def write_html(assessment, path: str) -> str:
     if not paths_html:
         paths_html = "<p><i>No multi-step attack paths correlated.</i></p>"
 
+    # embeddable attack graph (Mermaid, rendered client-side)
+    mermaid_block = ""
+    try:
+        from attack_paths import graph as _graph
+        mm = _graph.to_mermaid(assessment.findings, assessment.target)
+        if mm.count("\n") > 1:
+            # NB: raw mermaid syntax (escaping would break the arrows); node
+            # labels are already sanitized in to_mermaid().
+            mermaid_block = f'<h2>Attack graph</h2><div class="mermaid">{mm}</div>'
+    except Exception:
+        pass
+
     rows = ""
     for f in fs:
         kev = '<span class="kev">KEV</span>' if f.kev else ""
@@ -236,6 +271,7 @@ Actively-exploited (KEV): <b>{s['kev_count']}</b> &nbsp;|&nbsp; Attack paths: <b
 (top risk {s['top_attack_risk']}/100)</div>
 <div class="cards">{cards}</div>
 <h2>Attack paths</h2>{paths_html}
+{mermaid_block}
 <h2>Findings ({s['total']})</h2>
 <table><thead><tr><th>Severity</th><th>Title</th><th>Confidence</th><th>Validation</th>
 <th>Asset</th><th>CWE</th><th>OWASP</th><th>ATT&amp;CK</th><th>Remediation</th></tr></thead>
@@ -243,7 +279,14 @@ Actively-exploited (KEV): <b>{s['kev_count']}</b> &nbsp;|&nbsp; Attack paths: <b
 <h2>Coverage</h2><pre>{cov}</pre>
 <div class="foot">Authorized security assessment tool — detection &amp; validation only.
 Findings are indicators; validate before acting. Not a claim of "100% secure".</div>
-</div></body></html>"""
+</div>
+<script type="module">
+  try {{
+    import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')
+      .then(m => m.default.initialize({{ startOnLoad: true, theme: 'dark' }}))
+      .catch(() => {{}});
+  }} catch (e) {{}}
+</script></body></html>"""
     with open(path, "w") as fh:
         fh.write(doc)
     return path

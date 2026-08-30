@@ -172,9 +172,14 @@ def main() -> int:
     ap.add_argument("--aws-profile", dest="aws_profile", default=None)
     ap.add_argument("--gcp-project", dest="gcp_project", default=None)
     ap.add_argument("--azure-subscription", dest="azure_subscription", default=None)
-    # baseline / retest
+    # baseline / retest / triage
     ap.add_argument("--compare", default=None, help="compare against an old report.json")
     ap.add_argument("--baseline", action="store_true", help="save this run as the baseline")
+    ap.add_argument("--triage-file", dest="triage_file", default=None,
+                    help="persistent triage store (fingerprint->status) applied across scans")
+    ap.add_argument("--mark", default=None,
+                    help="record a triage decision: 'FINGERPRINT=STATUS[:note]' (needs --triage-file)")
+    ap.add_argument("--no-plugins", action="store_true", help="disable plugin loading")
     # meta
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets/CI)")
     ap.add_argument("--dry-run", action="store_true", help="show the planned pipeline, run nothing")
@@ -199,6 +204,22 @@ def main() -> int:
         return cmd_list_capabilities()
     if args.update or args.check_updates:
         return cmd_update()
+
+    # record a triage decision and exit
+    if args.mark:
+        if not args.triage_file:
+            print("--mark requires --triage-file"); return 2
+        from core.triage import TriageStore
+        spec, _, rest = args.mark.partition("=")
+        status, _, note = rest.partition(":")
+        store = TriageStore.load(args.triage_file)
+        try:
+            store.mark(spec.strip(), status.strip(), note.strip())
+        except ValueError as e:
+            print(e); return 2
+        store.save()
+        print(f"triage: {spec.strip()} -> {status.strip()}  (saved {args.triage_file})")
+        return 0
 
     # target + profile + mode (interactive if missing)
     target = args.target
@@ -252,9 +273,15 @@ def main() -> int:
     outdir = args.out or f"report-{profile}-{safe}-{ts}"
     secrets = collect_secrets(args)
 
+    triage_store = None
+    if args.triage_file:
+        from core.triage import TriageStore
+        triage_store = TriageStore.load(args.triage_file)
+
     assessment = run_assessment(
         target, profile=profile, mode=mode, policy=policy,
-        outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind)
+        outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind,
+        triage_store=triage_store, load_plugins=not args.no_plugins)
 
     # reports
     from reporting import report as report_mod

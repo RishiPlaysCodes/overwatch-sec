@@ -47,8 +47,13 @@ correlates attack paths, and produces industry-grade reports.
 | `core.config` | Loads profiles/policies (PyYAML if present, else built-in loader; safe fallbacks). |
 | `attack_paths.mitre` | Finding→ATT&CK technique + tactic mapping (metadata-driven, extensible). |
 | `attack_paths.correlation` | Chains findings per asset along the kill-chain; risk-scores paths. |
-| `reporting.report` | `md` / `json` / `csv` / `html` dashboard + `security_score`. |
+| `reporting.report` | `md` / `json` / `csv` / `html` dashboard + `security_score` + embedded Mermaid attack graph. |
 | `reporting.compare` | Baseline/retest diff (new/fixed/persistent, risk delta). |
+| `attack_paths.graph` | **Real node/edge graph** (entry/asset/finding/objective); enumerates Internet→crown-jewel paths with **multi-asset lateral** chaining; risk scoring + Mermaid export. |
+| `validation.validator` | **Safe, policy-gated** confirmation (DETECTED→VALIDATED / NOT_EXPLOITABLE); non-destructive re-observation only, never exploitation. |
+| `validation.confidence` | Confidence/validation-state transitions. |
+| `core.triage` | **Persistent triage** store (fingerprint→status) applied across scans; mutes false-positives/fixed. |
+| `core.plugins` | **Plugin loader**: `plugins/*.py` register scanners / MITRE maps / validators / objectives / tools without touching core. |
 
 ## Design decisions
 

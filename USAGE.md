@@ -59,6 +59,34 @@ python3 vulnscan.py example.com --baseline                    # save baseline.js
 python3 vulnscan.py example.com --compare ./run1/report.json  # retest diff
 ```
 
+Reports include an **attack-path graph** (Mermaid) rendered in the HTML/Markdown
+report — Internet → findings → 🎯 crown-jewel objectives, with multi-asset
+lateral movement.
+
+## Validation (safe, policy-gated)
+
+In `deep` mode with a validating policy (`redteam`/`lab`/`authorized_pentest`),
+findings are **safely re-checked** and upgraded from `detected` to `validated`
+or `not_exploitable` — using non-destructive re-observation only (never
+exploitation). In `fast`/bug-bounty defaults, findings are marked
+`detected — manual validation required`.
+
+## Triage (persist decisions across scans)
+
+```bash
+# record a decision (get FINGERPRINT from report.json)
+python3 vulnscan.py example.com --triage-file triage.json --mark "<FP>=false_positive:mitigated by WAF"
+# subsequent scans apply it (muted findings drop out of the score)
+python3 vulnscan.py example.com --triage-file triage.json
+```
+Statuses: `open`, `validated`, `false_positive`, `accepted_risk`, `fixed`, `retest_required`.
+
+## Plugins (extend without touching core)
+
+Drop a `plugins/*.py` defining `register(reg)` (see `plugins/README.md`). Loaded
+automatically; disable with `--no-plugins`. Add MITRE mappings, validators,
+attack-path objectives, new target kinds, or tools.
+
 ## Inspect / control
 
 ```bash

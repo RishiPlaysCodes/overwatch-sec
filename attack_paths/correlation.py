@@ -30,47 +30,13 @@ def _risk_score(findings) -> float:
 
 def build_paths(findings, target: str) -> list[dict]:
     """
-    Group findings per asset and order them by kill-chain tactic to form paths.
-    Only assets that have at least one 'entry' finding plus an escalation/impact
-    finding produce a multi-step path; others become single-step observations.
+    Correlate findings into attack paths. Backed by the graph engine
+    (attack_paths.graph) which enumerates real Internet->objective paths with
+    multi-asset (lateral) chaining. This function preserves the historical
+    return contract used by reporting and tests.
     """
-    by_asset: dict[str, list] = {}
-    for f in findings:
-        by_asset.setdefault(f.asset or target, []).append(f)
-
-    paths = []
-    for asset, fs in by_asset.items():
-        # order by tactic position in the kill chain
-        ordered = sorted(fs, key=lambda f: TACTIC_ORDER.index(tactic_of(f.id))
-                         if tactic_of(f.id) in TACTIC_ORDER else 99)
-        # de-dup consecutive identical tactics but keep highest severity per step
-        steps = []
-        for f in ordered:
-            tac = tactic_of(f.id)
-            steps.append({
-                "tactic": tac,
-                "technique": f.mitre[0] if f.mitre else "",
-                "finding": f.title,
-                "id": f.id,
-                "severity": f.severity,
-                "kev": f.kev,
-                "asset": asset,
-            })
-        has_entry = any(s["tactic"] in _ENTRY_TACTICS for s in steps)
-        # build a readable chain string
-        chain = ["Internet"] + [f"{s['tactic']}: {s['finding']}" for s in steps]
-        paths.append({
-            "asset": asset,
-            "entry": has_entry,
-            "length": len(steps),
-            "risk_score": _risk_score(fs),
-            "steps": steps,
-            "chain": " -> ".join(chain),
-        })
-
-    # rank: entry paths first, then by risk, then length
-    paths.sort(key=lambda p: (0 if p["entry"] else 1, -p["risk_score"], -p["length"]))
-    return paths
+    from . import graph
+    return graph.build_paths(findings, target)
 
 
 def overall_risk(paths: list[dict]) -> float:
