@@ -103,6 +103,45 @@ def cmd_list_knowledge() -> int:
     return 0
 
 
+# map a detected target kind -> the install.sh group that provides its tools
+KIND_INSTALL_GROUP = {
+    "web": "web", "api": "web", "recon": "recon", "network": "network",
+    "mobile": "mobile", "cloud": "cloud", "container": "container",
+    "kubernetes": "cloud", "code": "code",
+}
+
+
+def run_installer(groups: list[str]) -> int:
+    """Run the bundled install.sh for the given groups (streams output live)."""
+    import subprocess
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.sh")
+    if not os.path.isfile(script):
+        print(f"{C.RED}install.sh not found next to vulnscan.py{C.RESET}")
+        return 1
+    groups = groups or ["all"]
+    print(f"{C.CYN}Running installer: install.sh {' '.join(groups)}{C.RESET}\n", flush=True)
+    try:
+        return subprocess.run(["bash", script, *groups]).returncode
+    except FileNotFoundError:
+        print(f"{C.RED}bash not found — run: ./install.sh {' '.join(groups)}{C.RESET}")
+        return 1
+
+
+def cmd_install(groups: list[str]) -> int:
+    return run_installer(groups)
+
+
+def missing_tools_for_kind(kind: str, mode: str, policy) -> list[str]:
+    """Tools that would help this scan but are not installed/on PATH."""
+    miss = []
+    for t in capabilities.for_kind(kind):
+        if mode not in t.modes:
+            continue
+        if not t.available():
+            miss.append(t.name)
+    return sorted(set(miss))
+
+
 def cmd_update() -> int:
     import subprocess
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "feeds", "update_feeds.py")
@@ -269,6 +308,12 @@ def main() -> int:
     ap.add_argument("--list-capabilities", action="store_true")
     ap.add_argument("--list-knowledge", action="store_true",
                     help="show the security-knowledge catalog (families, counts, domain coverage)")
+    ap.add_argument("--install", nargs="*", metavar="GROUP", default=None,
+                    help="install all external scanners in one shot, then exit "
+                         "(optionally limit to groups: recon web network mobile cloud code container)")
+    ap.add_argument("--auto-install", dest="auto_install", action="store_true",
+                    help="before scanning, auto-install any missing tools for the target's kind "
+                         "(runs install.sh for that group; needs sudo/network)")
     ap.add_argument("--check-updates", action="store_true")
     ap.add_argument("--update", action="store_true", help="refresh CVE feeds")
     ap.add_argument("--version", action="store_true")
@@ -286,6 +331,8 @@ def main() -> int:
         return cmd_list_capabilities()
     if args.list_knowledge:
         return cmd_list_knowledge()
+    if args.install is not None:
+        return cmd_install(args.install)
     if args.update or args.check_updates:
         return cmd_update()
 
@@ -372,6 +419,21 @@ def main() -> int:
         for t, r in sorted(plan["tools_skipped"].items()):
             print(f"    - {t}: {r}")
         return 0
+
+    # tool availability: auto-install (opt-in) or nudge with the one command to fix it
+    kind_for_tools = force_kind or detect(target)["kind"]
+    grp = KIND_INSTALL_GROUP.get(kind_for_tools)
+    miss = missing_tools_for_kind(kind_for_tools, mode, policy)
+    if args.auto_install and grp and miss:
+        print(f"{C.YEL}Missing tools for {kind_for_tools}: {', '.join(miss)} — installing now…{C.RESET}")
+        run_installer([grp])
+        miss = missing_tools_for_kind(kind_for_tools, mode, policy)  # re-check
+    if miss:
+        g = grp or "all"
+        shown = ", ".join(miss[:6]) + ("…" if len(miss) > 6 else "")
+        print(f"{C.YEL}Note: {len(miss)} tool(s) not installed ({shown}).{C.RESET}")
+        print(f"{C.YEL}      Install them all in one shot: {C.BOLD}python3 vulnscan.py --install {g}{C.RESET}"
+              + ("" if args.auto_install else f"  {C.YEL}(or add --auto-install){C.RESET}"))
 
     if not authorize(target, profile, mode, policy, args.yes):
         print("Authorization not confirmed. Aborting."); return 2

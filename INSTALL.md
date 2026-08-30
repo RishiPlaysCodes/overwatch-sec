@@ -11,12 +11,35 @@ cd script-test-case
 python3 vulnscan.py --version          # core works immediately (stdlib only)
 ```
 
-## Recommended (Kali / Debian / Ubuntu / WSL / macOS)
+## Recommended — install everything in one shot (Kali / Debian / Ubuntu / WSL)
 
 ```bash
-chmod +x install.sh
-./install.sh                           # installs tool groups; skips what it can't
+python3 vulnscan.py --install          # installs ALL external scanners, then exits
+# equivalent to:  ./install.sh
 python3 feeds/update_feeds.py          # pull fresh CISA KEV + NVD data
+```
+
+The installer is reliable and idempotent: it uses apt first, then `go install`
+(with retries + a proxy fallback), then curl/pip/pipx fallbacks, and it
+**symlinks Go-built binaries into `/usr/local/bin`** so they are on `PATH`
+immediately — no "installed but shows as not installed" and no need to open a
+new terminal. Anything it still can't install is listed at the end with the
+exact command to finish it.
+
+Install only specific groups:
+```bash
+python3 vulnscan.py --install recon web      # or: ./install.sh recon web
+```
+
+Let vulnscan install a target's tools automatically, right before scanning:
+```bash
+python3 vulnscan.py https://your-site.com --auto-install
+```
+
+Manual equivalent:
+```bash
+chmod +x install.sh
+./install.sh                           # installs all tool groups
 ```
 
 Optional Python extras:

@@ -130,12 +130,22 @@ cd script-test-case
 
 **Step 2 — Install everything (one command)**
 ```bash
-chmod +x install.sh deploy/install-scheduler.sh feeds/update_feeds.py
-./install.sh                     # web + mobile + cloud + code + network tools
-# or pick groups:  ./install.sh web network code
+python3 vulnscan.py --install     # installs ALL scanners in one shot, then exits
+# or pick groups:  python3 vulnscan.py --install web network code
+# manual equivalent:  chmod +x install.sh && ./install.sh
 ```
+The installer is reliable and idempotent: apt first, then `go install` (with
+retries + proxy fallback), then curl/pip/pipx fallbacks — and it **symlinks
+Go tools into `/usr/local/bin`** so they're on `PATH` immediately (no more
+"installed but shows as not installed", no new-terminal dance). Whatever still
+can't be installed is printed at the end with the exact command to finish it.
 If pip complains about "externally-managed-environment", the installer already
-passes `--break-system-packages`; for manual pip use add that flag yourself.
+handles it (`--break-system-packages` / `pipx`).
+
+Prefer vulnscan to grab a target's tools automatically, just before scanning?
+```bash
+python3 vulnscan.py https://your-site.com --auto-install
+```
 
 **Step 3 — Pull fresh vulnerability data (CISA KEV + NVD)**
 ```bash
