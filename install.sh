@@ -160,8 +160,8 @@ fi
 
 # ---- WEB ------------------------------------------------------------------
 if want web; then
-  title "Web tools (nmap, nikto, sqlmap, whatweb, nuclei, testssl.sh)"
-  apt_install nmap nikto sqlmap whatweb testssl.sh
+  title "Web tools (nmap, nikto, sqlmap, whatweb, nuclei, testssl.sh, wpscan, feroxbuster, zaproxy)"
+  apt_install nmap nikto sqlmap whatweb testssl.sh wpscan feroxbuster zaproxy
   if ! have nuclei; then
     apt_install nuclei
     if ! have nuclei; then ensure_go; go_install nuclei "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"; fi
@@ -171,8 +171,8 @@ fi
 
 # ---- RECON (bug bounty) ---------------------------------------------------
 if want recon; then
-  title "Recon tools (subfinder, httpx, naabu, dnsx, katana, nuclei, ffuf, gau, gowitness, amass, wafw00f)"
-  apt_install amass wafw00f ffuf assetfinder seclists
+  title "Recon tools (subfinder, httpx, naabu, dnsx, katana, nuclei, ffuf, feroxbuster, gau, gowitness, amass, wafw00f)"
+  apt_install amass wafw00f ffuf feroxbuster assetfinder seclists
   ensure_go
   go_install subfinder   "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
   go_install httpx       "github.com/projectdiscovery/httpx/cmd/httpx@latest"
@@ -233,11 +233,15 @@ if want mobile; then
   info "Tip: for deep mobile analysis run MobSF via Docker and set MOBSF_URL + MOBSF_APIKEY"
 fi
 
-# ---- CLOUD ----------------------------------------------------------------
+# ---- CLOUD / KUBERNETES ---------------------------------------------------
 if want cloud; then
-  title "Cloud tools (checkov, prowler, scoutsuite, trivy)"
+  title "Cloud/Kubernetes tools (checkov, prowler, scoutsuite, trivy, kube-bench)"
   pip_install checkov prowler scoutsuite
   if ! have trivy; then apt_install trivy; have trivy || FIXME[trivy]="see https://github.com/aquasecurity/trivy/releases"; fi
+  if ! have kube-bench; then
+    ensure_go
+    go_install kube-bench "github.com/aquasecurity/kube-bench@latest"
+  fi
 fi
 
 # persist ~/go/bin on PATH so tools are found in future shells (idempotent) --
@@ -252,11 +256,11 @@ fi
 title "Verification"
 MISSING=()
 check() { if have "$1"; then ok "$1 ✓"; else warn "$1 — not installed"; MISSING+=("$1"); fi; }
-want recon     && for t in subfinder httpx naabu dnsx katana nuclei ffuf gau gowitness amass wafw00f; do check "$t"; done
-want web       && for t in nmap nikto sqlmap whatweb nuclei testssl.sh; do check "$t"; done
+want recon     && for t in subfinder httpx naabu dnsx katana nuclei ffuf feroxbuster gau gowitness amass wafw00f; do check "$t"; done
+want web       && for t in nmap nikto sqlmap whatweb nuclei testssl.sh wpscan feroxbuster; do check "$t"; done
 want network   && for t in nmap searchsploit; do check "$t"; done
 want mobile    && for t in apkleaks apktool jadx; do check "$t"; done
-want cloud     && for t in checkov prowler scout trivy; do check "$t"; done
+want cloud     && for t in checkov prowler scout trivy kube-bench; do check "$t"; done
 want container && for t in trivy grype; do check "$t"; done
 want code      && for t in semgrep pip-audit gitleaks grype osv-scanner trivy; do check "$t"; done
 

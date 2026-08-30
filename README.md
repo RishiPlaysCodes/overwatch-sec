@@ -73,10 +73,14 @@ install is printed at the end with the exact command to finish it. PEP-668
 ("externally-managed-environment") is handled automatically (`--break-system-packages`
 / `pipx`).
 
-Prefer to let a scan grab its target's tools automatically, just before running?
+**By default, a scan installs any missing tools for the target's kind *before*
+running** — so you get a complete assessment instead of silently-skipped checks.
+Opt out with `--no-install` (then unavailable tools are skipped, and the report
+says exactly which ones and how to install them):
 
 ```bash
-python3 vulnscan.py https://your-site.com --auto-install
+python3 vulnscan.py https://your-site.com               # installs missing tools first, then scans
+python3 vulnscan.py https://your-site.com --no-install  # skip missing tools instead
 ```
 
 Then pull fresh vulnerability data (optional but recommended):
@@ -503,7 +507,7 @@ Full details in [`docs/CLI.md`](docs/CLI.md). Most-used flags:
 | `--yes` | skip the authorization prompt (owned assets / CI) |
 | `--dry-run` | show the plan, run nothing |
 | **Info** | `--list-profiles` `--list-tools` `--list-capabilities` `--list-knowledge` `--gap-analysis` `--capability-matrix [--json]` |
-| **Setup** | `--install [groups]` `--auto-install` `--update` `--version` |
+| **Setup** | `--install [groups]` `--no-install` (skip missing instead of installing) `--auto-install` `--update` `--version` |
 
 ---
 

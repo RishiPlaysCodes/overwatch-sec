@@ -31,7 +31,12 @@ to launch the **interactive wizard** (asks device type → target → mode).
 | Command | What it does |
 |---|---|
 | `--install [groups…]` | install external scanners in one shot, then exit. Groups: `recon web network mobile cloud code container` (default: all) |
-| `--auto-install` | before a scan, auto-install the target-kind's missing tools |
+| `--no-install` | **opt out** of the default behaviour: skip unavailable tools instead of installing them |
+| `--auto-install` | (default already on; kept for compatibility) install the target-kind's missing tools before a scan |
+
+> **By default**, a scan installs any missing tools for the target's kind before
+> running, so the assessment is complete. The report always states which tools ran,
+> which were skipped, and why. Use `--no-install` to keep missing tools skipped.
 | `--update` / `--check-updates` | refresh CVE feeds (CISA KEV + NVD) into `data/` |
 
 ---

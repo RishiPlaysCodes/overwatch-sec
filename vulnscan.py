@@ -338,8 +338,11 @@ def main() -> int:
                     help="install all external scanners in one shot, then exit "
                          "(optionally limit to groups: recon web network mobile cloud code container)")
     ap.add_argument("--auto-install", dest="auto_install", action="store_true",
-                    help="before scanning, auto-install any missing tools for the target's kind "
-                         "(runs install.sh for that group; needs sudo/network)")
+                    help="(default behaviour, kept for compatibility) install missing tools for the "
+                         "target's kind before scanning")
+    ap.add_argument("--no-install", dest="no_install", action="store_true",
+                    help="do NOT auto-install missing tools; skip unavailable tools instead "
+                         "(old behaviour). By default vulnscan installs missing tools first.")
     ap.add_argument("--check-updates", action="store_true")
     ap.add_argument("--update", action="store_true", help="refresh CVE feeds")
     ap.add_argument("--version", action="store_true")
@@ -450,23 +453,33 @@ def main() -> int:
             print(f"    - {t}: {r}")
         return 0
 
-    # tool availability: auto-install (opt-in) or nudge with the one command to fix it
+    if not authorize(target, profile, mode, policy, args.yes):
+        print("Authorization not confirmed. Aborting."); return 2
+
+    # Tool availability. DEFAULT: install any missing tools for this target kind
+    # BEFORE scanning (so the assessment is complete, not silently degraded).
+    # Opt out with --no-install to keep missing tools skipped instead.
     kind_for_tools = force_kind or detect(target)["kind"]
     grp = KIND_INSTALL_GROUP.get(kind_for_tools)
     miss = missing_tools_for_kind(kind_for_tools, mode, policy)
-    if args.auto_install and grp and miss:
-        print(f"{C.YEL}Missing tools for {kind_for_tools}: {', '.join(miss)} — installing now…{C.RESET}")
+    if miss and grp and not args.no_install:
+        print(f"{C.CYN}{len(miss)} tool(s) for '{kind_for_tools}' not installed "
+              f"({', '.join(miss[:8])}{'…' if len(miss) > 8 else ''}).{C.RESET}")
+        print(f"{C.CYN}Installing them first (default). Skip this with {C.BOLD}--no-install{C.RESET}"
+              f"{C.CYN}.{C.RESET}")
         run_installer([grp])
-        miss = missing_tools_for_kind(kind_for_tools, mode, policy)  # re-check
+        miss = missing_tools_for_kind(kind_for_tools, mode, policy)  # re-check after install
     if miss:
         g = grp or "all"
-        shown = ", ".join(miss[:6]) + ("…" if len(miss) > 6 else "")
-        print(f"{C.YEL}Note: {len(miss)} tool(s) not installed ({shown}).{C.RESET}")
-        print(f"{C.YEL}      Install them all in one shot: {C.BOLD}python3 vulnscan.py --install {g}{C.RESET}"
-              + ("" if args.auto_install else f"  {C.YEL}(or add --auto-install){C.RESET}"))
-
-    if not authorize(target, profile, mode, policy, args.yes):
-        print("Authorization not confirmed. Aborting."); return 2
+        shown = ", ".join(miss[:8]) + ("…" if len(miss) > 8 else "")
+        if args.no_install:
+            print(f"{C.YEL}--no-install: {len(miss)} tool(s) will be SKIPPED ({shown}). "
+                  f"Install later: {C.BOLD}python3 vulnscan.py --install {g}{C.RESET}")
+        else:
+            print(f"{C.YEL}{len(miss)} tool(s) still unavailable after install and will be skipped "
+                  f"({shown}).{C.RESET}")
+            print(f"{C.YEL}They usually need sudo/network or a manual step — the installer printed "
+                  f"the exact command for each. Re-run: {C.BOLD}python3 vulnscan.py --install {g}{C.RESET}")
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", target)[:40]
