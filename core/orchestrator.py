@@ -196,23 +196,39 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         findings.append(f)
     findings = dedupe(findings)
 
-    # optional: identity/AD/cloud attack-path analysis from an authorized export
+    # optional: identity/AD/cloud attack-path analysis from an authorized export.
+    # Accepts either our native identity schema OR a raw BloodHound export
+    # (auto-converted by connectors.detect_and_load).
     if identity_file:
         try:
             from attack_paths import identity
-            idf = identity.load_and_analyze(identity_file)
+            kind_c, data_c = _try_connector(identity_file)
+            if kind_c == "identity":
+                idf = identity.analyze(data_c)
+            else:
+                idf = identity.load_and_analyze(identity_file)
             findings += idf
             cov.ran("identity_analysis", detail=f"{len(idf)} escalation path(s)")
         except Exception as e:
             cov.errored("identity_analysis", detail=str(e)[:150])
 
-    # optional: threat-detection from an authorized host/cloud data export (+ IOC feed)
+    # optional: threat-detection / cloud findings from an authorized export.
+    # Accepts our native threat schema OR raw ScoutSuite/Prowler output.
     if threat_file:
         try:
             from threat_detection import detector
-            tf = detector.load_and_analyze(threat_file, ioc_file)
-            findings += tf
-            cov.ran("threat_detection", detail=f"{len(tf)} indicator(s)")
+            kind_c, data_c = _try_connector(threat_file)
+            if kind_c == "findings":     # e.g. Prowler -> ready-made Finding objects
+                findings += data_c
+                cov.ran("cloud_findings_import", detail=f"{len(data_c)} finding(s)")
+            elif kind_c == "threat":     # e.g. ScoutSuite -> threat telemetry
+                tf = detector.analyze_input(data_c, _load_json(ioc_file))
+                findings += tf
+                cov.ran("threat_detection", detail=f"{len(tf)} indicator(s)")
+            else:                         # native threat-input schema
+                tf = detector.load_and_analyze(threat_file, ioc_file)
+                findings += tf
+                cov.ran("threat_detection", detail=f"{len(tf)} indicator(s)")
         except Exception as e:
             cov.errored("threat_detection", detail=str(e)[:150])
 
@@ -247,6 +263,26 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
     findings.sort(key=sort_key)
     assessment.findings = findings
     return assessment
+
+
+def _try_connector(path: str):
+    """Return (kind, data) from a raw tool export, or (None, None) if native."""
+    try:
+        from connectors import detect_and_load
+        return detect_and_load(path)
+    except Exception:
+        return None, None
+
+
+def _load_json(path):
+    if not path:
+        return None
+    try:
+        import json
+        with open(path) as fh:
+            return json.load(fh)
+    except Exception:
+        return None
 
 
 def _guess_asset(d: dict, target: str) -> str:

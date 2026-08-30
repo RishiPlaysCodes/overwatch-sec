@@ -97,9 +97,53 @@ def _validate_dir_listing(f) -> str:
     return "manual"
 
 
+def _validate_cors(f) -> str:
+    """Confirm the API reflects an arbitrary Origin with credentials (safe GET)."""
+    import urllib.request
+    url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
+    probe = "https://vulnscan-probe.example"
+    req = urllib.request.Request(url, headers={"User-Agent": "vulnscan-validate/1.0", "Origin": probe})
+    try:
+        with urllib.request.urlopen(req, timeout=12) as r:
+            h = {k.lower(): v for k, v in r.headers.items()}
+    except Exception:
+        return "manual"
+    acao = h.get("access-control-allow-origin", "")
+    acac = h.get("access-control-allow-credentials", "").lower()
+    if acao == probe and acac == "true":
+        conf.mark_validated(f, "arbitrary Origin reflected with credentials")
+        return "validated"
+    if acao in ("*", "") and acac != "true":
+        conf.mark_not_exploitable(f, "no credentialed cross-origin reflection on re-check")
+        return "not_exploitable"
+    return "manual"
+
+
+def _validate_cookie(f) -> str:
+    """Re-fetch and confirm the Set-Cookie really lacks Secure/HttpOnly/SameSite."""
+    url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
+    try:
+        _, headers, _, _ = http_get(url)
+    except Exception:
+        return "manual"
+    sc = headers.get("set-cookie", "")
+    if not sc:
+        return "manual"
+    low = sc.lower()
+    missing = [x for x in ("secure", "httponly", "samesite") if x not in low]
+    if missing:
+        conf.mark_validated(f, "Set-Cookie missing: " + ", ".join(missing))
+        return "validated"
+    conf.mark_not_exploitable(f, "cookie now has Secure/HttpOnly/SameSite")
+    f.status = "fixed"
+    return "not_exploitable"
+
+
 register("web.header", _validate_missing_header)
 register("web.xss.reflected", _validate_reflection)
 register("recon.dir_listing", _validate_dir_listing)
+register("api.cors", _validate_cors)
+register("web.cookie", _validate_cookie)
 
 
 # ---------------------------------------------------------------------------

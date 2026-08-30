@@ -104,10 +104,36 @@ python3 vulnscan.py host.example --threat-input host_export.json --ioc-file iocs
 ## PDF & report formats
 
 ```bash
-python3 vulnscan.py example.com --formats md,json,csv,html,pdf
+python3 vulnscan.py example.com --formats md,json,csv,html,pdf,sarif
 ```
-`pdf` uses `wkhtmltopdf`/`weasyprint` if installed (rich), else a built-in
-dependency-free text PDF so `report.pdf` always exists.
+- `pdf` uses `wkhtmltopdf`/`weasyprint` if installed (rich), else a built-in
+  dependency-free text PDF so `report.pdf` always exists.
+- `html` also emits **`attack-graph.html`** — an interactive Cytoscape.js graph
+  (click nodes to drill down, filter by severity); the main report links to it.
+- `sarif` emits `report.sarif` (SARIF 2.1.0) for GitHub Code Scanning / CI.
+
+## CI gating
+
+Fail a pipeline on risk thresholds (non-zero exit):
+```bash
+python3 vulnscan.py example.com --profile web --yes --formats sarif --fail-on high
+python3 vulnscan.py example.com --yes --fail-on-kev                    # any actively-exploited CVE
+python3 vulnscan.py example.com --yes --compare baseline.json --fail-on-new
+```
+Only **active** findings count (false-positive/fixed/accepted-risk are ignored).
+
+## Live tool connectors (bring-your-own-data)
+
+Feed raw output from authorized tools directly to `--identity-file` /
+`--threat-input`; connectors auto-detect and convert it:
+```bash
+# BloodHound export -> identity attack paths
+python3 vulnscan.py corp.example --profile redteam --identity-file bloodhound.json
+# Prowler JSON -> cloud findings   |   ScoutSuite JSON -> threat telemetry
+python3 vulnscan.py aws --threat-input prowler.json
+python3 vulnscan.py aws --threat-input scoutsuite.json
+```
+Connectors are offline parsers — they never call a live directory/cloud API.
 
 ## Plugins (extend without touching core)
 

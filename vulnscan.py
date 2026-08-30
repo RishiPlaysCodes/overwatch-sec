@@ -180,6 +180,14 @@ def main() -> int:
     ap.add_argument("--mark", default=None,
                     help="record a triage decision: 'FINGERPRINT=STATUS[:note]' (needs --triage-file)")
     ap.add_argument("--no-plugins", action="store_true", help="disable plugin loading")
+    # CI gating (exit non-zero to fail a pipeline)
+    ap.add_argument("--fail-on", dest="fail_on", default=None,
+                    choices=["critical", "high", "medium", "low", "info"],
+                    help="exit non-zero if any active finding is at/above this severity")
+    ap.add_argument("--fail-on-kev", dest="fail_on_kev", action="store_true",
+                    help="exit non-zero if any actively-exploited (CISA KEV) finding is present")
+    ap.add_argument("--fail-on-new", dest="fail_on_new", action="store_true",
+                    help="exit non-zero if new findings vs --compare baseline (needs --compare)")
     # Phase 3: identity + threat analysis from authorized data exports
     ap.add_argument("--identity-file", dest="identity_file", default=None,
                     help="identity graph export (JSON) for AD/cloud privilege-escalation analysis")
@@ -309,11 +317,12 @@ def main() -> int:
         print(f"  report.{fmt}: {p}")
 
     # baseline / compare
+    compare_diff = None
     if args.compare:
         from reporting import compare as cmp_mod
         try:
-            diff = cmp_mod.compare(args.compare, assessment)
-            print("\n" + cmp_mod.render(diff))
+            compare_diff = cmp_mod.compare(args.compare, assessment)
+            print("\n" + cmp_mod.render(compare_diff))
         except Exception as e:
             print(f"compare failed: {e}")
     if args.baseline:
@@ -321,6 +330,14 @@ def main() -> int:
         base = os.path.join(outdir, "baseline.json")
         shutil.copy(paths.get("json", os.path.join(outdir, "report.json")), base)
         print(f"  baseline saved: {base}")
+
+    # CI gating (exit non-zero to fail a pipeline)
+    if args.fail_on or args.fail_on_kev or args.fail_on_new:
+        from reporting.sarif import gate
+        code, reason = gate(assessment, fail_on=args.fail_on, fail_on_kev=args.fail_on_kev,
+                            fail_on_new=args.fail_on_new, compare_diff=compare_diff)
+        print(f"\n{(C.RED if code else C.GRN)}{reason}{C.RESET}")
+        return code
     return 0
 
 

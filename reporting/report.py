@@ -286,7 +286,9 @@ pre{{background:#16212c;padding:16px;border-radius:8px;overflow:auto;white-space
 Actively-exploited (KEV): <b>{s['kev_count']}</b> &nbsp;|&nbsp; Attack paths: <b>{s['attack_paths']}</b>
 (top risk {s['top_attack_risk']}/100)</div>
 <div class="cards">{cards}</div>
-<h2>Attack paths</h2>{paths_html}
+<h2>Attack paths</h2>
+<p><a href="attack-graph.html" style="color:#7fd1ff">▶ Open the interactive attack graph »</a> (click nodes to drill down, filter by severity)</p>
+{paths_html}
 {mermaid_block}
 <h2>Findings ({s['total']})</h2>
 <table><thead><tr><th>Severity</th><th>Title</th><th>Confidence</th><th>Validation</th>
@@ -322,6 +324,15 @@ def write_all(assessment, outdir: str, formats=("md", "json", "csv", "html")) ->
     if "html" in formats:
         html_path = write_html(assessment, os.path.join(outdir, "report.html"))
         paths["html"] = html_path
+    if "sarif" in formats:
+        from . import sarif as _sarif
+        paths["sarif"] = _sarif.write_sarif(assessment, os.path.join(outdir, "report.sarif"))
+    if "html" in formats and assessment.findings:
+        try:
+            from . import graph_html as _gh
+            paths["graph"] = _gh.write_graph_html(assessment, os.path.join(outdir, "attack-graph.html"))
+        except Exception:
+            pass
     if "pdf" in formats:
         from . import pdf as _pdf
         # render the HTML if we have it (best fidelity), else built-in text PDF

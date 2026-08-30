@@ -59,6 +59,9 @@ correlates attack paths, and produces industry-grade reports.
 | `attack_paths.identity` | **AD/cloud identity attack paths** from an authorized export (BloodHound-style); principal→crown-jewel privesc/lateral chains → MITRE. |
 | `threat_detection.detector` | Classify signals (vuln/misconfig/**threat_indicator**/**active_compromise**); IOC matching from authorized host/cloud exports. Strict epistemics. |
 | `reporting.pdf` | PDF output: best-effort html→pdf, else a dependency-free built-in text PDF. |
+| `reporting.sarif` | SARIF 2.1.0 export (GitHub Code Scanning) + `gate()` CI fail thresholds (severity / KEV / new-vs-baseline). |
+| `reporting.graph_html` | Interactive Cytoscape.js attack graph (`attack-graph.html`) — click-to-drill-down + severity filter. |
+| `connectors.*` | Offline parsers: BloodHound→identity graph, Prowler→findings, ScoutSuite→threat telemetry; `detect_and_load()` auto-sniffs. |
 
 ## Design decisions
 
