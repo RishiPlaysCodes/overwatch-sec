@@ -71,6 +71,27 @@ or `not_exploitable` — using non-destructive re-observation only (never
 exploitation). In `fast`/bug-bounty defaults, findings are marked
 `detected — manual validation required`.
 
+Every report and console summary includes **validation coverage**: of the
+findings that had a validation capability (`selected`), how many were actually
+`executed`, `validated`, or `refuted`, and — for the rest — the exact reason
+they were *not* run: `blocked_by_policy` (e.g. active-exploitation classes like
+SSRF/SSTI/command-injection need an intrusive, authorized policy — we never
+auto-exploit), `missing_prerequisite` (e.g. a test account for IDOR/BOLA), or
+`blocked_by_scope`. This is measurable honesty, not a "100% tested" claim.
+
+## What does it know? (knowledge catalog)
+
+```bash
+python3 vulnscan.py --list-knowledge      # attack families, definition counts, domain coverage
+python3 vulnscan.py --list-capabilities   # validation tests: risk level + prerequisites
+```
+
+The knowledge base defines each vulnerability class once (CWE/OWASP/CAPEC +
+attack scenario + fix). `--list-knowledge` shows the families it covers, how
+many definitions exist per family, and which broad security domains are
+KB-backed vs. reasoned indirectly (e.g. memory-safety / wireless-IoT via
+CVE/exports) — derived live from the KB so the counts can never over-claim.
+
 ## Triage (persist decisions across scans)
 
 ```bash

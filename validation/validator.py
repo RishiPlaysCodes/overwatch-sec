@@ -158,7 +158,8 @@ def validate(findings, policy, coverage=None, context: dict | None = None) -> di
     stats = {"validated": 0, "not_exploitable": 0, "not_validated": 0,
              "manual_validation_required": 0, "blocked_by_policy": 0,
              "blocked_by_authentication": 0, "blocked_by_missing_dependency": 0,
-             "blocked_by_scope": 0, "error": 0, "selected": 0}
+             "blocked_by_scope": 0, "error": 0, "selected": 0,
+             "findings_total": len(findings)}
     context = context or {}
     ran_any = False
 

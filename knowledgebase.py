@@ -766,6 +766,439 @@ KB: dict[str, dict] = {
         "patch": "Add pagination/limits, cache expensive responses, and require auth on costly operations; "
         "monitor and cap concurrency.",
     },
+
+    # ============================ WEB — INJECTION & LOGIC (extended) =======
+    "web.ssrf": {
+        "cwe": "CWE-918",
+        "owasp": "A10:2021 Server-Side Request Forgery",
+        "capec": ["CAPEC-664"],
+        "root_cause": "The server fetches a URL/host that is (wholly or partly) attacker-controlled, "
+        "without validating the destination against an allow-list.",
+        "severity": "high",
+        "title": "Server-Side Request Forgery (SSRF)",
+        "description": "A server-side feature (URL fetcher, webhook, PDF/image renderer, importer) makes "
+        "requests to a destination the attacker can influence.",
+        "attack": "Attacker points the parameter at internal addresses (169.254.169.254 cloud metadata, "
+        "127.0.0.1, internal admin services) to steal IAM credentials, reach internal APIs, or pivot "
+        "into the private network.",
+        "patch": "Validate destinations against a strict allow-list, resolve+pin DNS, block link-local/"
+        "private/loopback ranges, disable unused URL schemes/redirects, and require IMDSv2 in the cloud.",
+    },
+    "web.ssti": {
+        "cwe": "CWE-1336",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-242"],
+        "root_cause": "User input is embedded into a server-side template that is then rendered, so the "
+        "input is evaluated as template code rather than data.",
+        "severity": "high",
+        "title": "Server-Side Template Injection (SSTI)",
+        "description": "Untrusted input reaches a template engine (Jinja2, Twig, Freemarker, Velocity) as "
+        "part of the template itself.",
+        "attack": "Attacker submits template expressions (e.g. `{{7*7}}` then sandbox-escape payloads) that "
+        "the engine evaluates, frequently escalating to remote code execution on the server.",
+        "patch": "Never build templates from user input; pass user data only as bound variables, use a "
+        "logic-less/sandboxed template engine, and validate input.",
+    },
+    "web.idor": {
+        "cwe": "CWE-639",
+        "owasp": "A01:2021 Broken Access Control",
+        "capec": ["CAPEC-180"],
+        "root_cause": "Authorization is not enforced per object; the app trusts a client-supplied "
+        "identifier without checking the caller owns/may access that object.",
+        "severity": "high",
+        "title": "Insecure Direct Object Reference (IDOR)",
+        "description": "An object is selected by a client-controlled id (e.g. `?invoice=1043`) without a "
+        "server-side ownership/authorization check.",
+        "attack": "Attacker increments/guesses ids to read or modify other users' records — invoices, "
+        "messages, accounts — a classic broken-access-control data breach.",
+        "patch": "Enforce object-level authorization on every access; use unguessable identifiers, scope "
+        "queries to the authenticated principal, and deny by default.",
+    },
+    "web.open_redirect": {
+        "cwe": "CWE-601",
+        "owasp": "A01:2021 Broken Access Control",
+        "capec": ["CAPEC-194"],
+        "root_cause": "A redirect/forward target is taken from user input without validating it points to "
+        "an allowed same-site destination.",
+        "severity": "medium",
+        "title": "Open redirect",
+        "description": "A parameter (e.g. `next`, `url`, `returnTo`) controls a redirect target without "
+        "allow-listing, so the app will bounce users to arbitrary external sites.",
+        "attack": "Attacker crafts a trusted-looking link on your domain that redirects victims to a "
+        "phishing/credential-harvesting site; also used to bypass SSRF/OAuth redirect allow-lists.",
+        "patch": "Redirect only to a server-side allow-list or relative paths; validate the target host, "
+        "and show an interstitial for off-site links.",
+    },
+    "web.xxe": {
+        "cwe": "CWE-611",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "capec": ["CAPEC-221"],
+        "root_cause": "An XML parser resolves external entities / DTDs from untrusted XML input.",
+        "severity": "high",
+        "title": "XML External Entity (XXE) injection",
+        "description": "The application parses attacker-supplied XML with external-entity resolution "
+        "enabled.",
+        "attack": "Attacker defines an external entity to read local files (`file:///etc/passwd`), perform "
+        "SSRF to internal services, or cause entity-expansion DoS.",
+        "patch": "Disable DTDs and external entities in the XML parser (`FEATURE_SECURE_PROCESSING`, "
+        "`disallow-doctype-decl`); prefer JSON or a hardened parser.",
+    },
+    "web.path_traversal": {
+        "cwe": "CWE-22",
+        "owasp": "A01:2021 Broken Access Control",
+        "capec": ["CAPEC-126"],
+        "root_cause": "A file path is built from user input without canonicalizing and confining it to an "
+        "intended base directory.",
+        "severity": "high",
+        "title": "Path traversal / directory traversal",
+        "description": "A filename/path parameter reaches the filesystem without normalization, allowing "
+        "`../` sequences to escape the intended directory.",
+        "attack": "Attacker uses `../../etc/passwd` (or encoded variants) to read arbitrary files — configs, "
+        "keys, source — outside the intended folder.",
+        "patch": "Canonicalize the resolved path and verify it stays within an allow-listed base dir; map "
+        "user input to opaque ids instead of raw paths.",
+    },
+    "web.lfi": {
+        "cwe": "CWE-98",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-252"],
+        "root_cause": "A dynamic include/require uses a user-controlled path resolving to a local file.",
+        "severity": "high",
+        "title": "Local File Inclusion (LFI)",
+        "description": "A server-side include mechanism loads a local file chosen by user input.",
+        "attack": "Attacker includes local files to read source/secrets, or chains log-poisoning / PHP "
+        "wrappers to achieve remote code execution.",
+        "patch": "Never include files by user input; use a fixed allow-list/switch of permitted modules and "
+        "disable remote/stream wrappers.",
+    },
+    "web.rfi": {
+        "cwe": "CWE-98",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-193"],
+        "root_cause": "A dynamic include allows a remote URL as the include source.",
+        "severity": "high",
+        "title": "Remote File Inclusion (RFI)",
+        "description": "The include mechanism will fetch and execute a file from a remote URL supplied by "
+        "the user.",
+        "attack": "Attacker hosts a malicious script and supplies its URL, causing the server to fetch and "
+        "execute it — direct remote code execution.",
+        "patch": "Disable remote includes (`allow_url_include=Off`), use a fixed allow-list of local "
+        "modules, and validate all input.",
+    },
+    "web.command_injection": {
+        "cwe": "CWE-78",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-88"],
+        "root_cause": "User input is passed to an OS shell/command interpreter without safe argument "
+        "handling.",
+        "severity": "critical",
+        "title": "OS command injection",
+        "description": "Untrusted input is concatenated into a shell command or passed through a shell.",
+        "attack": "Attacker appends shell metacharacters (`; rm -rf`, `$(...)`, backticks) to run arbitrary "
+        "OS commands as the web process — typically full server compromise.",
+        "patch": "Avoid the shell; call binaries directly with an argument array and no shell interpolation, "
+        "validate/allow-list inputs, and run with least privilege.",
+    },
+    "web.deserialization": {
+        "cwe": "CWE-502",
+        "owasp": "A08:2021 Software & Data Integrity Failures",
+        "capec": ["CAPEC-586"],
+        "root_cause": "Untrusted data is deserialized into objects by an unsafe deserializer that can "
+        "instantiate arbitrary types / invoke gadget chains.",
+        "severity": "critical",
+        "title": "Insecure deserialization",
+        "description": "The app deserializes attacker-controlled data with an unsafe mechanism (Java "
+        "serialization, Python pickle, PHP unserialize, .NET BinaryFormatter).",
+        "attack": "Attacker crafts a serialized object / gadget chain that, on deserialization, executes "
+        "code or tampers with application state — frequently remote code execution.",
+        "patch": "Never deserialize untrusted data with unsafe deserializers; use data-only formats (JSON) "
+        "with strict schemas, sign/verify serialized blobs, and allow-list types.",
+    },
+    "web.request_smuggling": {
+        "cwe": "CWE-444",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "capec": ["CAPEC-33"],
+        "root_cause": "A front-end proxy and back-end server disagree on request boundaries "
+        "(Content-Length vs Transfer-Encoding), letting a request be split.",
+        "severity": "high",
+        "title": "HTTP request smuggling",
+        "description": "Inconsistent parsing of ambiguous request framing between chained HTTP servers.",
+        "attack": "Attacker smuggles a hidden request that poisons the next user's response, bypasses "
+        "front-end access controls, or performs cache poisoning / credential capture.",
+        "patch": "Normalize/reject ambiguous framing at the edge, use HTTP/2 end-to-end where possible, "
+        "and keep proxy + origin parsing consistent and patched.",
+    },
+    "web.prototype_pollution": {
+        "cwe": "CWE-1321",
+        "owasp": "A08:2021 Software & Data Integrity Failures",
+        "severity": "high",
+        "title": "Prototype pollution (JavaScript)",
+        "description": "User-controlled keys (`__proto__`, `constructor.prototype`) are merged into objects, "
+        "polluting the base prototype.",
+        "attack": "Attacker injects properties onto Object.prototype to tamper with application logic, "
+        "bypass checks, or (with a suitable gadget) achieve XSS or RCE.",
+        "patch": "Reject/strip `__proto__`/`prototype`/`constructor` keys, use Map or null-prototype "
+        "objects, and use safe deep-merge libraries.",
+    },
+    "web.csrf": {
+        "cwe": "CWE-352",
+        "owasp": "A01:2021 Broken Access Control",
+        "capec": ["CAPEC-62"],
+        "root_cause": "A state-changing request is accepted using only ambient credentials (cookies) with "
+        "no unpredictable anti-CSRF token or SameSite protection.",
+        "severity": "medium",
+        "title": "Cross-Site Request Forgery (CSRF)",
+        "description": "State-changing endpoints rely on cookies alone and lack anti-CSRF tokens.",
+        "attack": "Attacker lures a logged-in victim to a page that auto-submits a forged request, "
+        "performing actions (transfer, email change) as the victim.",
+        "patch": "Require per-request anti-CSRF tokens (or double-submit), set `SameSite=Lax/Strict` "
+        "cookies, and require re-auth for sensitive actions.",
+    },
+    "web.cache_poisoning": {
+        "cwe": "CWE-524",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "high",
+        "title": "Web cache poisoning",
+        "description": "Unkeyed request inputs (headers) influence a cached response served to other users.",
+        "attack": "Attacker sends a request whose unkeyed header injects malicious content; the response is "
+        "cached and served to every subsequent visitor (stored XSS / redirect at scale).",
+        "patch": "Include all response-affecting inputs in the cache key, sanitize/normalize headers, and "
+        "avoid reflecting unkeyed input into cacheable responses.",
+    },
+    "web.nosql_injection": {
+        "cwe": "CWE-943",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-676"],
+        "root_cause": "User input is placed into a NoSQL query/operator structure without type checking or "
+        "parameterization.",
+        "severity": "high",
+        "title": "NoSQL injection",
+        "description": "Untrusted input is interpolated into a NoSQL query (e.g. MongoDB operators).",
+        "attack": "Attacker submits operator objects (`{\"$ne\": null}`, `{\"$gt\": \"\"}`) to bypass "
+        "authentication or extract data via boolean/timing oracles.",
+        "patch": "Validate/cast input types, reject object-valued fields where scalars are expected, and use "
+        "the driver's parameterized query APIs.",
+    },
+    "web.ldap_injection": {
+        "cwe": "CWE-90",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-136"],
+        "root_cause": "User input is concatenated into an LDAP filter without escaping.",
+        "severity": "high",
+        "title": "LDAP injection",
+        "description": "Untrusted input is placed into an LDAP search filter unescaped.",
+        "attack": "Attacker injects filter metacharacters (`*)(uid=*`) to bypass authentication or "
+        "enumerate/exfiltrate directory data.",
+        "patch": "Escape LDAP special characters per RFC 4515, use parameterized filter builders, and "
+        "validate input.",
+    },
+    "web.xpath_injection": {
+        "cwe": "CWE-643",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-83"],
+        "root_cause": "User input is concatenated into an XPath expression without parameterization.",
+        "severity": "medium",
+        "title": "XPath injection",
+        "description": "Untrusted input alters an XPath query used against XML data.",
+        "attack": "Attacker injects XPath syntax to bypass authentication or read nodes they should not "
+        "access from the XML store.",
+        "patch": "Use parameterized/precompiled XPath with variable binding and validate input.",
+    },
+    "web.host_header": {
+        "cwe": "CWE-644",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Host header injection",
+        "description": "The application trusts the client-supplied Host/X-Forwarded-Host header to build "
+        "absolute URLs (links, password-reset links).",
+        "attack": "Attacker sets a malicious Host so password-reset or verification links point to their "
+        "domain, capturing tokens; can also enable cache poisoning.",
+        "patch": "Validate Host against an allow-list of expected domains, build URLs from server config "
+        "(not the request), and ignore untrusted forwarding headers.",
+    },
+    "web.jwt_weak": {
+        "cwe": "CWE-347",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "capec": ["CAPEC-475"],
+        "root_cause": "JWT signature verification is weak or optional (accepts `alg:none`, weak HMAC secret, "
+        "or algorithm confusion RS256->HS256).",
+        "severity": "high",
+        "title": "Weak / unverified JWT",
+        "description": "Tokens are accepted without robust signature verification or with a guessable key.",
+        "attack": "Attacker forges tokens by setting `alg:none`, brute-forcing a weak HMAC secret, or "
+        "abusing RS256/HS256 confusion — impersonating any user, including admins.",
+        "patch": "Pin the expected algorithm server-side, reject `none`, use strong keys, verify "
+        "signature+claims (iss/aud/exp), and rotate keys.",
+    },
+    "web.oauth_misconfig": {
+        "cwe": "CWE-346",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "OAuth / OIDC misconfiguration",
+        "description": "OAuth flow has weak redirect_uri validation, missing state/PKCE, or leaks tokens in "
+        "the URL fragment/referrer.",
+        "attack": "Attacker abuses a loose redirect_uri or missing state (CSRF) to steal authorization "
+        "codes/tokens and take over accounts.",
+        "patch": "Exact-match registered redirect URIs, require `state` + PKCE, use short-lived codes, and "
+        "never expose tokens in URLs/logs.",
+    },
+    "web.mass_assignment": {
+        "cwe": "CWE-915",
+        "owasp": "A08:2021 Software & Data Integrity Failures",
+        "severity": "high",
+        "title": "Mass assignment / auto-binding",
+        "description": "The framework binds request fields directly to internal objects, so clients can set "
+        "fields they shouldn't (e.g. `role`, `isAdmin`).",
+        "attack": "Attacker adds unexpected fields to the request body to elevate privileges or overwrite "
+        "protected attributes.",
+        "patch": "Bind only explicit allow-listed fields (DTOs/strong params), never expose internal model "
+        "attributes, and enforce authorization on sensitive fields.",
+    },
+    "web.xss.stored": {
+        "cwe": "CWE-79",
+        "owasp": "A03:2021 Injection (XSS)",
+        "capec": ["CAPEC-592"],
+        "root_cause": "User-supplied content is stored and later rendered to other users without "
+        "context-aware output encoding.",
+        "severity": "high",
+        "title": "Stored Cross-Site Scripting (XSS)",
+        "description": "Persisted input (comments, profiles) is rendered to other users without encoding.",
+        "attack": "Attacker stores a script that executes in every viewer's session — mass session "
+        "hijacking, worming, or admin-panel takeover when staff view the content.",
+        "patch": "Context-aware output encoding on render, a strict CSP, framework auto-escaping, and "
+        "server-side sanitization of stored HTML.",
+    },
+    "web.xss.dom": {
+        "cwe": "CWE-79",
+        "owasp": "A03:2021 Injection (XSS)",
+        "severity": "medium",
+        "title": "DOM-based Cross-Site Scripting (XSS)",
+        "description": "Client-side JS writes untrusted data (location.hash, postMessage) into a dangerous "
+        "sink (innerHTML, eval) without sanitization.",
+        "attack": "Attacker crafts a URL/fragment that the page's own JavaScript writes into the DOM, "
+        "executing script in the victim's session — no server round-trip needed.",
+        "patch": "Use safe sinks (textContent), sanitize with Trusted Types/DOMPurify, avoid eval/innerHTML "
+        "with untrusted data, and validate message origins.",
+    },
+
+    # ============================ API (extended — OWASP API Top 10) ========
+    "api.bola": {
+        "cwe": "CWE-639",
+        "owasp": "API1:2023 Broken Object Level Authorization",
+        "capec": ["CAPEC-180"],
+        "root_cause": "The API does not verify that the caller is authorized for the specific object id in "
+        "the request.",
+        "severity": "high",
+        "title": "Broken Object Level Authorization (BOLA)",
+        "description": "An API endpoint returns/modifies an object by id without checking the caller may "
+        "access that object (the API equivalent of IDOR).",
+        "attack": "Attacker swaps the object id (e.g. `/api/orders/{id}`) to read or change other tenants' "
+        "records — the #1 API risk and a common mass-data-breach vector.",
+        "patch": "Enforce per-object authorization on every request against the authenticated principal; "
+        "use unguessable ids and centralized access checks.",
+    },
+    "api.bfla": {
+        "cwe": "CWE-285",
+        "owasp": "API5:2023 Broken Function Level Authorization",
+        "severity": "high",
+        "title": "Broken Function Level Authorization (BFLA)",
+        "description": "Privileged functions/methods are reachable by users without the required role "
+        "(e.g. an admin action callable by a normal user).",
+        "attack": "Attacker calls administrative endpoints or uses unexpected HTTP methods to perform "
+        "privileged operations they should not have access to.",
+        "patch": "Deny by default; enforce role/permission checks on every function and method server-side, "
+        "and keep admin routes behind explicit authorization.",
+    },
+    "api.excessive_data": {
+        "cwe": "CWE-213",
+        "owasp": "API3:2023 Broken Object Property Level Authorization",
+        "severity": "medium",
+        "title": "Excessive data exposure",
+        "description": "An API returns full objects and relies on the client to filter, leaking properties "
+        "the caller shouldn't see.",
+        "attack": "Attacker inspects raw API responses to harvest sensitive fields (emails, tokens, internal "
+        "flags) that the UI hides but the API still returns.",
+        "patch": "Return only the fields each consumer needs (server-side response shaping/DTOs); never rely "
+        "on client-side filtering.",
+    },
+    "api.graphql_dos": {
+        "cwe": "CWE-770",
+        "owasp": "API4:2023 Unrestricted Resource Consumption",
+        "severity": "medium",
+        "title": "GraphQL query depth/complexity not limited",
+        "description": "The GraphQL endpoint accepts arbitrarily deep/nested or batched queries without "
+        "depth or cost limits.",
+        "attack": "Attacker sends deeply nested or aliased/batched queries that amplify backend work, "
+        "exhausting resources (an application-layer DoS with a single request).",
+        "patch": "Enforce query depth + complexity/cost limits, disable unbounded batching/aliasing, add "
+        "timeouts and per-client rate limits.",
+    },
+
+    # ============================ DATABASE / DATA STORES ===================
+    "db.exposed": {
+        "cwe": "CWE-668",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "high",
+        "title": "Database service exposed to the network",
+        "description": "A database port (MySQL 3306, Postgres 5432, MongoDB 27017, Redis 6379, "
+        "Elasticsearch 9200) is reachable beyond its intended network.",
+        "attack": "Attacker connects directly to the DB and attempts default/no credentials, known CVEs, or "
+        "unauthenticated data dumps (common for exposed Mongo/Redis/Elastic).",
+        "patch": "Bind DBs to private interfaces, firewall/allow-list access, require authentication + TLS, "
+        "and never expose data stores to the internet.",
+    },
+    "db.default_creds": {
+        "cwe": "CWE-1392",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "capec": ["CAPEC-70"],
+        "severity": "high",
+        "title": "Default or weak service credentials",
+        "description": "A service/DB/admin panel accepts default or trivially weak credentials.",
+        "attack": "Attacker logs in with vendor defaults (admin/admin, root/no-password) to gain immediate "
+        "privileged access.",
+        "patch": "Change all default credentials on deployment, enforce strong password policy + MFA, and "
+        "scan for defaults in CI/CD and asset onboarding.",
+    },
+
+    # ============================ CRYPTOGRAPHY =============================
+    "crypto.weak_hash": {
+        "cwe": "CWE-916",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "medium",
+        "title": "Weak password hashing / algorithm",
+        "description": "Passwords stored with fast/broken hashes (MD5, SHA1, unsalted) or data protected by "
+        "deprecated algorithms.",
+        "attack": "If the store leaks, attacker cracks weak/unsalted hashes at scale (GPU/rainbow tables) "
+        "and reuses credentials elsewhere.",
+        "patch": "Use a memory-hard password hash (argon2id, scrypt, bcrypt) with per-user salt; migrate "
+        "off MD5/SHA1 for integrity/signatures.",
+    },
+    "crypto.weak_random": {
+        "cwe": "CWE-338",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "medium",
+        "title": "Insecure randomness for security tokens",
+        "description": "Security-sensitive values (tokens, session ids, reset codes) use a non-cryptographic "
+        "PRNG (e.g. rand()/Math.random()).",
+        "attack": "Attacker predicts or brute-forces the values (session ids, reset tokens) to hijack "
+        "sessions or take over accounts.",
+        "patch": "Generate security tokens from a CSPRNG (secrets, crypto.randomBytes, SecureRandom) with "
+        "sufficient entropy.",
+    },
+
+    # ============================ SUPPLY CHAIN =============================
+    "supplychain.dependency_confusion": {
+        "cwe": "CWE-427",
+        "owasp": "A08:2021 Software & Data Integrity Failures",
+        "severity": "high",
+        "title": "Dependency confusion / unclaimed internal package",
+        "description": "An internal package name is not reserved on the public registry, so a public package "
+        "of the same name could be pulled during builds.",
+        "attack": "Attacker publishes a malicious public package with the internal name and higher version; "
+        "the build resolves to it, executing attacker code in CI/dev (supply-chain compromise).",
+        "patch": "Reserve internal names on public registries, pin/scoped registries with an explicit "
+        "index, use lockfiles + integrity hashes, and verify package provenance.",
+    },
 }
 
 

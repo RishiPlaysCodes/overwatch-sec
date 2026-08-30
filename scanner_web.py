@@ -109,6 +109,27 @@ def _builtin_checks(url: str) -> list[dict]:
             fields = [i["name"] for i in f["inputs"] if i["name"]]
             info(f"form ({f['method'].upper()}) -> {action} fields={fields}")
 
+    # Open-redirect INDICATOR (passive only): look for redirect-style parameters
+    # that already carry an absolute URL in on-page links or the current URL.
+    # This is a hint for manual review — we do NOT actively test the redirect.
+    try:
+        import re as _re
+        redirect_params = ("url", "next", "redirect", "redirect_uri", "redir", "return",
+                           "returnurl", "returnto", "dest", "destination", "continue",
+                           "forward", "goto", "out", "target")
+        hay = (body or "") + " " + url
+        hits = set()
+        for pname in redirect_params:
+            # param=<absolute-url|scheme-relative> (http(s):// or //host)
+            if _re.search(rf"[?&]{_re.escape(pname)}=(https?%3a|https?:|%2f%2f|//)", hay, _re.I):
+                hits.add(pname)
+        if hits:
+            out.append(finding("web.open_redirect",
+                               f"Redirect-style parameter(s) carrying absolute URLs observed: "
+                               f"{', '.join(sorted(hits))} (indicator — validate manually)"))
+    except Exception:
+        pass
+
     # Reflected-input probe (non-destructive XSS indicator)
     marker = "vlnscn7391xZ"
     parsed = urlparse(url)

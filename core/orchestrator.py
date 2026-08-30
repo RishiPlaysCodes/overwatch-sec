@@ -322,7 +322,7 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
     try:
         from validation import validator
         vctx = {"has_auth": bool(secrets), "in_scope": True}
-        validator.validate(findings, policy, coverage=cov, context=vctx)
+        cov.validation_stats = validator.validate(findings, policy, coverage=cov, context=vctx)
         cp.store_findings(findings)
         cp.mark("validate", "completed")
     except Exception as e:

@@ -38,6 +38,8 @@ class Coverage:
     kb_version: str = ""
     feeds_updated: str = ""
     attack_techniques: int = 0
+    # raw counts returned by validation/validator.validate() (spec §30).
+    validation_stats: dict = field(default_factory=dict)
 
     def stage(self, name: str) -> Stage:
         s = Stage(name=name)
@@ -52,6 +54,47 @@ class Coverage:
 
     def errored(self, name: str, detail: str = "") -> None:
         self.stages.append(Stage(name, "error", "", detail))
+
+    def validation_coverage(self) -> dict:
+        """
+        Measurable validation coverage (spec §30), derived from the raw stats the
+        validator returned. This answers "of the findings we could validate, how
+        many did we actually confirm/refute, and why were the rest not run?" —
+        honestly, with a reason for every not-run bucket. Never a security claim.
+        """
+        v = self.validation_stats or {}
+        g = lambda k: int(v.get(k, 0))  # noqa: E731
+        total = g("findings_total")
+        selected = g("selected")
+        validated = g("validated")
+        refuted = g("not_exploitable")
+        unvalidated = g("not_validated")
+        manual = g("manual_validation_required")
+        blocked_policy = g("blocked_by_policy")
+        blocked_auth = g("blocked_by_authentication")
+        blocked_dep = g("blocked_by_missing_dependency")
+        blocked_scope = g("blocked_by_scope")
+        errors = g("error")
+        executed = validated + refuted + unvalidated + errors
+        not_applicable = max(0, total - selected)
+        resolved = validated + refuted
+        # % of selected checks that produced a definitive confirm/refute
+        rate = round(100 * resolved / selected) if selected else 0
+        return {
+            "findings_total": total,
+            "selected": selected,
+            "not_applicable": not_applicable,
+            "executed": executed,
+            "validated": validated,
+            "not_exploitable": refuted,
+            "unvalidated": unvalidated,
+            "manual_required": manual,
+            "blocked_by_policy": blocked_policy,
+            "missing_prerequisite": blocked_auth + blocked_dep,
+            "blocked_by_scope": blocked_scope,
+            "errors": errors,
+            "validation_rate": rate,
+        }
 
     def summary(self) -> dict:
         ran = [s for s in self.stages if s.status == "ran"]
@@ -71,6 +114,7 @@ class Coverage:
             "tools_unavailable": sorted(set(self.tools_unavailable)),
             "checks_run": self.checks_run,
             "attack_techniques_mapped": self.attack_techniques,
+            "validation_coverage": self.validation_coverage(),
             "kb_version": self.kb_version,
             "feeds_updated": self.feeds_updated,
             "disclaimer": "Coverage is measurable, not exhaustive. This is not a claim of "
@@ -84,10 +128,30 @@ class Coverage:
         lines.append(f"  Tools executed             : {len(s['tools_executed'])} ({', '.join(s['tools_executed']) or 'none'})")
         lines.append(f"  Tools unavailable          : {len(s['tools_unavailable'])}")
         lines.append(f"  ATT&CK techniques mapped   : {s['attack_techniques_mapped']}")
+        vc = s.get("validation_coverage", {})
+        if vc.get("selected"):
+            lines.append("  Validation coverage:")
+            lines.append(f"    - selected/executed      : {vc['selected']}/{vc['executed']} "
+                         f"({vc['validation_rate']}% confirmed or refuted)")
+            lines.append(f"    - validated / refuted    : {vc['validated']} / {vc['not_exploitable']}")
+            lines.append(f"    - unvalidated / manual   : {vc['unvalidated']} / {vc['manual_required']}")
+            not_run = []
+            if vc["blocked_by_policy"]:
+                not_run.append(f"policy {vc['blocked_by_policy']}")
+            if vc["missing_prerequisite"]:
+                not_run.append(f"missing-prereq {vc['missing_prerequisite']}")
+            if vc["blocked_by_scope"]:
+                not_run.append(f"scope {vc['blocked_by_scope']}")
+            if vc["errors"]:
+                not_run.append(f"errors {vc['errors']}")
+            if not_run:
+                lines.append(f"    - not run (with reason)  : {', '.join(not_run)}")
         if s["skip_reasons"]:
             lines.append("  Skipped because:")
             for r, n in sorted(s["skip_reasons"].items()):
                 lines.append(f"    - {r}: {n}")
+        if s.get("kb_version"):
+            lines.append(f"  Knowledge base             : {s['kb_version']}")
         lines.append(f"  Elapsed                    : {s['elapsed_seconds']}s")
         lines.append("")
         lines.append("  NOTE: measurable coverage only — never '100% secure'.")

@@ -42,7 +42,8 @@ correlates attack paths, and produces industry-grade reports.
 | `core.policy` | Safety levels `passive→safe_active→validation→intrusive→destructive`, **safe by default**, authorization gate, secret redaction, hard clamp. |
 | `core.target_detector` | Identifies target kind (web/api/recon/network/mobile/cloud/container/kubernetes/code) → scanner. |
 | `core.capabilities` | Tool registry: which tools serve which kinds, risk level, modes, install state, version. |
-| `core.coverage` | Measurable coverage: stages ran/skipped/errored + reasons, tools, ATT&CK count. Never claims "100% secure". |
+| `core.coverage` | Measurable coverage: stages ran/skipped/errored + reasons, tools, ATT&CK count, and **validation coverage** (selected/executed/validated/refuted/manual + precise not-run reasons: policy/prereq/scope/error). Never claims "100% secure". |
+| `core.knowledge` | **Security-knowledge catalog** derived live from the KB: attack families + per-family definition counts, and broad security-domain coverage (covered / indirectly-reasoned / declared). Powers `--list-knowledge`; can't over-claim. |
 | `core.orchestrator` | Builds and runs the pipeline; enforces scope + policy; normalizes; correlates. |
 | `core.config` | Loads profiles/policies (PyYAML if present, else built-in loader; safe fallbacks). |
 | `attack_paths.mitre` | Finding→ATT&CK technique + tactic mapping (metadata-driven, extensible). |

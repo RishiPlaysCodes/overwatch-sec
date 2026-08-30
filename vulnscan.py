@@ -97,6 +97,12 @@ def cmd_list_capabilities() -> int:
     return 0
 
 
+def cmd_list_knowledge() -> int:
+    from core import knowledge
+    print(knowledge.render())
+    return 0
+
+
 def cmd_update() -> int:
     import subprocess
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "feeds", "update_feeds.py")
@@ -261,6 +267,8 @@ def main() -> int:
     ap.add_argument("--list-profiles", action="store_true")
     ap.add_argument("--list-tools", action="store_true")
     ap.add_argument("--list-capabilities", action="store_true")
+    ap.add_argument("--list-knowledge", action="store_true",
+                    help="show the security-knowledge catalog (families, counts, domain coverage)")
     ap.add_argument("--check-updates", action="store_true")
     ap.add_argument("--update", action="store_true", help="refresh CVE feeds")
     ap.add_argument("--version", action="store_true")
@@ -276,6 +284,8 @@ def main() -> int:
         return cmd_list_tools()
     if args.list_capabilities:
         return cmd_list_capabilities()
+    if args.list_knowledge:
+        return cmd_list_knowledge()
     if args.update or args.check_updates:
         return cmd_update()
 

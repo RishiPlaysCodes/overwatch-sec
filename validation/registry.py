@@ -69,6 +69,70 @@ CAPABILITIES: dict[str, ValidationCapability] = {
         id="api.cors.validate", applies_to="api.cors", name="CORS reflection confirmation",
         target_types=("api", "web"), requires=("authorized_target", "http"),
         risk="controlled_validation", evidence=("request", "response_headers")),
+
+    # --- classes we can only confirm with a benign, non-destructive re-observation
+    #     (no auto-exploit shipped -> resolve to manual_validation_required when the
+    #      policy permits controlled validation; blocked_by_policy otherwise) --------
+    "web.open_redirect": ValidationCapability(
+        id="web.open_redirect.validate", applies_to="web.open_redirect",
+        name="Open-redirect confirmation (manual)", target_types=("web",),
+        requires=("authorized_target", "http"), risk="controlled_validation"),
+    "web.host_header": ValidationCapability(
+        id="web.host_header.validate", applies_to="web.host_header",
+        name="Host-header handling review (manual)", target_types=("web",),
+        requires=("authorized_target", "http"), risk="controlled_validation"),
+    "web.jwt_weak": ValidationCapability(
+        id="web.jwt_weak.validate", applies_to="web.jwt_weak",
+        name="JWT verification review (manual)", target_types=("web", "api"),
+        requires=("authorized_target",), risk="controlled_validation"),
+    "web.mass_assignment": ValidationCapability(
+        id="web.mass_assignment.validate", applies_to="web.mass_assignment",
+        name="Mass-assignment review (manual)", target_types=("web", "api"),
+        requires=("authorized_target",), risk="controlled_validation"),
+
+    # --- object/function authorization: needs a test account to prove access -------
+    "web.idor": ValidationCapability(
+        id="web.idor.validate", applies_to="web.idor",
+        name="IDOR ownership check (needs test account)", target_types=("web", "api"),
+        requires=("authorized_target", "test_account"), risk="controlled_validation"),
+    "api.bola": ValidationCapability(
+        id="api.bola.validate", applies_to="api.bola",
+        name="BOLA authorization check (needs test account)", target_types=("api",),
+        requires=("authorized_target", "test_account"), risk="controlled_validation"),
+    "api.bfla": ValidationCapability(
+        id="api.bfla.validate", applies_to="api.bfla",
+        name="BFLA authorization check (needs test account)", target_types=("api",),
+        requires=("authorized_target", "test_account"), risk="controlled_validation"),
+
+    # --- active-exploitation classes: real validation requires intrusive testing,
+    #     so under the default safe policy these are honestly blocked_by_policy
+    #     (we do NOT ship auto-exploitation) --------------------------------------
+    "web.ssrf": ValidationCapability(
+        id="web.ssrf.validate", applies_to="web.ssrf", name="SSRF confirmation (intrusive)",
+        target_types=("web", "api"), requires=("authorized_target", "http"),
+        risk="intrusive", changes_state=True),
+    "web.ssti": ValidationCapability(
+        id="web.ssti.validate", applies_to="web.ssti", name="SSTI confirmation (intrusive)",
+        target_types=("web",), requires=("authorized_target", "http"), risk="intrusive"),
+    "web.command_injection": ValidationCapability(
+        id="web.cmdi.validate", applies_to="web.command_injection",
+        name="Command-injection confirmation (intrusive)", target_types=("web",),
+        requires=("authorized_target", "http"), risk="intrusive", changes_state=True),
+    "web.deserialization": ValidationCapability(
+        id="web.deser.validate", applies_to="web.deserialization",
+        name="Deserialization confirmation (intrusive)", target_types=("web", "api"),
+        requires=("authorized_target", "http"), risk="intrusive", changes_state=True),
+    "web.xxe": ValidationCapability(
+        id="web.xxe.validate", applies_to="web.xxe", name="XXE confirmation (intrusive)",
+        target_types=("web", "api"), requires=("authorized_target", "http"), risk="intrusive"),
+    "web.path_traversal": ValidationCapability(
+        id="web.pathtrav.validate", applies_to="web.path_traversal",
+        name="Path-traversal confirmation (intrusive)", target_types=("web",),
+        requires=("authorized_target", "http"), risk="intrusive"),
+    "db.default_creds": ValidationCapability(
+        id="db.default_creds.validate", applies_to="db.default_creds",
+        name="Default-credential check (intrusive)", target_types=("network", "database"),
+        requires=("authorized_target",), risk="intrusive"),
 }
 
 
