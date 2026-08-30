@@ -7,15 +7,46 @@ Every finding is explained: **what it is**, **how an attacker exploits it**, and
 **how to fix it** — mapped to **OWASP Top 10** and **CWE / SANS Top 25**, and
 (for CVEs) enriched with **CVSS** and the **CISA KEV** actively-exploited flag.
 
+## ⚡ Just one command (same on every device)
+
 ```bash
-python3 vulnscan.py https://example.com     # website
-python3 vulnscan.py ./app.apk               # mobile (APK / IPA)
-python3 vulnscan.py ./terraform/            # cloud IaC (Terraform / CloudFormation)
-python3 vulnscan.py aws                      # live cloud account (aws / azure / gcp)
-python3 vulnscan.py 10.0.0.5                 # network / host / CIDR
-python3 vulnscan.py ./my-project             # source code (SCA + secrets + SAST)
-python3 vulnscan.py nginx:1.21               # container image
+./run.sh
 ```
+
+That's it. On the **first run** it auto-installs the tools and pulls fresh CVE
+data; then it **asks what you want to scan** (website / network / mobile / code /
+container / cloud) and does the rest. Every run after that just scans (fast).
+
+Brand-new machine? One line does the whole thing (Kali / Ubuntu / Debian / macOS / WSL):
+```bash
+git clone https://github.com/RishiPlaysCodes/script-test-case.git && cd script-test-case && ./run.sh
+```
+
+Prefer to pass the target directly (it still auto-sets-up once, then auto-detects the type):
+```bash
+./run.sh https://example.com      # website
+./run.sh 192.168.1.0/24           # network / host / CIDR
+./run.sh ./app.apk                # mobile (APK / IPA)
+./run.sh ./my-project             # source code (deps + secrets + SAST)
+./run.sh nginx:1.21               # container image
+./run.sh ./terraform/             # cloud IaC
+./run.sh aws                      # live cloud account
+```
+
+`run.sh` extras: `--setup` (redo tool install), `--update` (refresh feeds now),
+`--no-setup` (skip setup, just scan). Any `vulnscan.py` flag (`--yes`, `--type`,
+`--skip`, `--out`) is passed straight through.
+
+<details>
+<summary>Advanced: call the Python scanner directly</summary>
+
+```bash
+python3 vulnscan.py               # asks what to scan (interactive)
+python3 vulnscan.py https://example.com
+python3 vulnscan.py ./app.apk
+python3 vulnscan.py aws
+```
+</details>
 
 > ⚠️ **Authorized use only.** Run ONLY against systems, apps, and accounts you
 > own or have explicit written permission to test. The tool asks you to confirm

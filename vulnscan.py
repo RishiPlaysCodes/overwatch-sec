@@ -106,6 +106,32 @@ DISPATCH = {
 }
 
 
+def prompt_for_target() -> str:
+    """Interactively ask what to scan when no target is given on the CLI."""
+    print(f"\n{C.CYN}{C.BOLD}What do you want to scan?{C.RESET}")
+    print("  1) Website / URL            (e.g. https://example.com)")
+    print("  2) Network host / IP / CIDR (e.g. 192.168.1.10 or 192.168.1.0/24)")
+    print("  3) Mobile app               (path to .apk / .ipa)")
+    print("  4) Source code folder       (path to a project dir)")
+    print("  5) Container image          (e.g. nginx:1.21)")
+    print("  6) Cloud IaC folder         (path to terraform/ etc.)")
+    print("  7) Live cloud account       (aws / azure / gcp)")
+    print(f"{C.BLU}Tip:{C.RESET} you can also just type the target directly.\n")
+    choice = input("Choice [1-7] or target: ").strip()
+    hints = {
+        "1": "Enter the URL: ",
+        "2": "Enter host/IP/CIDR: ",
+        "3": "Enter path to .apk/.ipa: ",
+        "4": "Enter path to the code folder: ",
+        "5": "Enter image ref (name:tag): ",
+        "6": "Enter path to the IaC folder: ",
+        "7": "Enter provider (aws/azure/gcp): ",
+    }
+    if choice in hints:
+        return input(hints[choice]).strip()
+    return choice  # user typed the target directly
+
+
 def authorize(target: str, profile: str, auto_yes: bool) -> bool:
     if auto_yes:
         return True
@@ -198,7 +224,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Master multi-target vulnerability scanner "
                     "(web / mobile / cloud / network / code / container). Authorized use only.")
-    ap.add_argument("target", help="URL | host/IP/CIDR | app.apk/.ipa | dir (IaC or source) | image:tag | aws/azure/gcp")
+    ap.add_argument("target", nargs="?", default=None,
+                    help="URL | host/IP/CIDR | app.apk/.ipa | dir (IaC or source) | image:tag | aws/azure/gcp "
+                         "(omit to be asked interactively)")
     ap.add_argument("--type", choices=["auto", "web", "mobile", "cloud", "network", "code", "container"],
                     default="auto", help="force target type (default: auto-detect)")
     ap.add_argument("--out", default=None, help="output directory")
@@ -206,7 +234,10 @@ def main() -> int:
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets / CI)")
     args = ap.parse_args()
 
-    target = args.target
+    target = args.target or prompt_for_target()
+    if not target:
+        err("No target given. Nothing to scan.")
+        return 2
     profile = args.type if args.type != "auto" else detect_profile(target)
     if profile == "web" and not re.match(r"^https?://", target) and target not in ("aws", "azure", "gcp"):
         target = "https://" + target
