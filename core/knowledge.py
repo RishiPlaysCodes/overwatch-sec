@@ -34,6 +34,13 @@ FAMILY_META: dict[str, dict] = {
     "crypto":       {"name": "Cryptography",              "domain": "crypto"},
     "supplychain":  {"name": "Software supply chain",     "domain": "supply_chain"},
     "availability": {"name": "Availability / resilience", "domain": "availability"},
+    "auth":         {"name": "Authentication / session",  "domain": "identity"},
+    "logic":        {"name": "Business logic",            "domain": "business_logic"},
+    "memory":       {"name": "Memory / binary safety",    "domain": "memory_safety"},
+    "wireless":     {"name": "Wireless",                  "domain": "wireless_iot"},
+    "iot":          {"name": "IoT / embedded devices",    "domain": "wireless_iot"},
+    "cicd":         {"name": "CI/CD pipeline",            "domain": "cicd"},
+    "iac":          {"name": "Infrastructure as Code",    "domain": "iac"},
 }
 
 # Broad security domains the platform aims to reason about (spec §30 breadth).
@@ -57,13 +64,18 @@ SECURITY_DOMAINS: dict[str, str] = {
     "crypto": "Cryptographic failures (hashing, randomness, TLS)",
     "memory_safety": "Memory-safety classes (buffer/UAF) — reasoned via CVE/SCA, no direct binary analysis",
     "wireless_iot": "Wireless / IoT — not directly scanned; reasoned via network exposure + CVEs",
-    "identity": "Identity & authentication failures across web/API/cloud",
+    "identity": "Identity, authentication & session (bypass, fixation, SSO/SAML, MFA)",
+    "business_logic": "Business-logic flaws (workflow/price/replay/race/tenant) — manual-validation heavy",
+    "memory_safety": "Memory-safety classes (buffer/UAF/int-overflow) — reasoned via CVE/SAST, no direct binary fuzzing",
+    "wireless_iot": "Wireless / IoT (encryption, default creds, firmware) — where in authorized scope",
+    "cicd": "CI/CD pipeline security (permissions, secrets, untrusted actions)",
+    "iac": "Infrastructure-as-Code (public exposure, secrets, insecure defaults)",
     "recon": "Attack-surface discovery / OSINT-style asset enumeration",
     "availability": "Availability & resilience (passive signals; no DoS)",
 }
 
 # Domains intentionally reasoned-about indirectly (never claim direct testing).
-_INDIRECT_DOMAINS = {"memory_safety", "wireless_iot", "active_directory", "identity"}
+_INDIRECT_DOMAINS = {"memory_safety", "active_directory"}
 
 
 def _kb():
@@ -126,6 +138,98 @@ def summary() -> dict:
         "disclaimer": "Knowledge is measurable, not exhaustive. Coverage counts are the "
                       "definitions that actually exist; new classes are added continuously.",
     }
+
+
+def _registry_caps():
+    """Validation capabilities keyed by finding-id prefix (lazy import; no cycle)."""
+    try:
+        from validation import registry
+        return registry.CAPABILITIES
+    except Exception:
+        return {}
+
+
+def _domain_of(fid: str) -> str:
+    fam = fid.split(".")[0]
+    return FAMILY_META.get(fam, {"domain": fam})["domain"]
+
+
+# validation states grouped for the coverage matrix (mirrors core.findings)
+_VALIDATED = {"validated", "exploitable"}
+_REFUTED = {"not_exploitable", "false_positive"}
+_MANUAL = {"manual_validation_required"}
+_BLOCKED = {"blocked_by_policy", "blocked_by_scope", "blocked_by_authentication",
+            "blocked_by_missing_dependency", "error"}
+
+
+def coverage_by_domain(findings=None) -> dict:
+    """
+    Measurable coverage per security domain (spec §42), tying together three real
+    signals: (1) how much KNOWLEDGE we have (KB entries), (2) how many VALIDATION
+    capabilities are registered, and (3) what actually happened to the findings in
+    THIS assessment (validated / refuted / manual / blocked). Everything is counted
+    from real objects — no fabricated percentages.
+    """
+    findings = list(findings or [])
+    cat = catalog()
+    caps = _registry_caps()
+
+    # base rows from every known domain (so a domain with 0 findings still shows)
+    rows: dict[str, dict] = {}
+    for domain, desc in SECURITY_DOMAINS.items():
+        rows[domain] = {"description": desc, "knowledge_entries": 0, "validators": 0,
+                        "findings": 0, "validated": 0, "refuted": 0, "manual": 0,
+                        "blocked": 0, "detected": 0}
+    # knowledge entries per domain
+    for fam in cat.values():
+        rows.setdefault(fam["domain"], {"description": fam["name"], "knowledge_entries": 0,
+                        "validators": 0, "findings": 0, "validated": 0, "refuted": 0,
+                        "manual": 0, "blocked": 0, "detected": 0})
+        rows[fam["domain"]]["knowledge_entries"] += fam["count"]
+    # registered validators per domain
+    for prefix in caps:
+        d = _domain_of(prefix)
+        if d in rows:
+            rows[d]["validators"] += 1
+    # this-assessment finding outcomes per domain
+    for f in findings:
+        d = _domain_of(f.id)
+        r = rows.setdefault(d, {"description": d, "knowledge_entries": 0, "validators": 0,
+                                "findings": 0, "validated": 0, "refuted": 0, "manual": 0,
+                                "blocked": 0, "detected": 0})
+        r["findings"] += 1
+        st = getattr(f, "validation", "detected")
+        if st in _VALIDATED:
+            r["validated"] += 1
+        elif st in _REFUTED:
+            r["refuted"] += 1
+        elif st in _MANUAL:
+            r["manual"] += 1
+        elif st in _BLOCKED:
+            r["blocked"] += 1
+        else:
+            r["detected"] += 1
+    return rows
+
+
+def render_coverage_matrix(findings=None) -> str:
+    rows = coverage_by_domain(findings)
+    # show domains with knowledge, validators, or findings first
+    ordered = sorted(rows.items(), key=lambda kv: (-(kv[1]["findings"]),
+                                                    -kv[1]["knowledge_entries"], kv[0]))
+    lines = ["COVERAGE BY DOMAIN", ""]
+    lines.append(f"  {'domain':16} {'KB':>3} {'val':>3} {'found':>5} {'vald':>4} "
+                 f"{'refu':>4} {'man':>3} {'blk':>3} {'det':>3}")
+    lines.append("  " + "-" * 56)
+    for domain, r in ordered:
+        lines.append(f"  {domain:16} {r['knowledge_entries']:>3} {r['validators']:>3} "
+                     f"{r['findings']:>5} {r['validated']:>4} {r['refuted']:>4} "
+                     f"{r['manual']:>3} {r['blocked']:>3} {r['detected']:>3}")
+    lines.append("")
+    lines.append("  KB=knowledge entries  val=validators registered  found=findings this scan")
+    lines.append("  vald=validated refu=refuted man=manual blk=blocked det=detected-only")
+    lines.append("  NOTE: measurable, per-domain — never a fabricated percentage or '100% secure'.")
+    return "\n".join(lines)
 
 
 def render() -> str:

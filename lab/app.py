@@ -22,6 +22,7 @@ PAGE = """<!DOCTYPE html><html><head><title>Vulnerable Lab</title></head><body>
   <input type="file" name="document"><button>Upload</button>
 </form>
 <a href="/admin">admin</a>
+<a href="/?next=https://evil.example/phish">continue to partner site</a>
 <p>Search results for: __Q__</p>
 </body></html>"""
 
@@ -40,6 +41,17 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body.encode())
 
     def do_GET(self):
+        # deliberately vulnerable open redirect: bounce to any 'next' target
+        if "?" in self.path and "next=" in self.path:
+            from urllib.parse import parse_qs, urlparse
+            nxt = parse_qs(urlparse(self.path).query).get("next", [""])[0]
+            if nxt:
+                self.send_response(302)
+                self.send_header("Set-Cookie", "session=deadbeef; Path=/")
+                self.send_header("Server", "Apache/2.4.18 (Ubuntu)")
+                self.send_header("Location", nxt)
+                self.end_headers()
+                return
         q = ""
         if "?" in self.path and "q=" in self.path:
             q = self.path.split("q=", 1)[1].split("&", 1)[0]   # reflected, unescaped

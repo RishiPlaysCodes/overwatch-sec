@@ -133,6 +133,62 @@ CAPABILITIES: dict[str, ValidationCapability] = {
         id="db.default_creds.validate", applies_to="db.default_creds",
         name="Default-credential check (intrusive)", target_types=("network", "database"),
         requires=("authorized_target",), risk="intrusive"),
+
+    # --- authentication / session: confirming these safely needs a test identity -
+    "auth.bypass": ValidationCapability(
+        id="auth.bypass.validate", applies_to="auth.bypass",
+        name="Auth-bypass check (needs test account)", target_types=("web", "api"),
+        requires=("authorized_target", "test_account"), risk="controlled_validation"),
+    "auth.session_fixation": ValidationCapability(
+        id="auth.session_fixation.validate", applies_to="auth.session_fixation",
+        name="Session-rotation check (needs test account)", target_types=("web",),
+        requires=("authorized_target", "test_account"), risk="controlled_validation"),
+    "auth.saml_misconfig": ValidationCapability(
+        id="auth.saml.validate", applies_to="auth.saml_misconfig",
+        name="SAML assertion-validation review (manual)", target_types=("web",),
+        requires=("authorized_target",), risk="controlled_validation"),
+
+    # --- business logic: inherently manual; needs an authenticated actor ---------
+    "logic": ValidationCapability(
+        id="logic.validate", applies_to="logic",
+        name="Business-logic validation (manual, needs test account)",
+        target_types=("web", "api"), requires=("authorized_target", "test_account"),
+        risk="controlled_validation"),
+
+    # --- injection variants that require active exploitation to confirm ----------
+    "web.crlf": ValidationCapability(
+        id="web.crlf.validate", applies_to="web.crlf", name="CRLF-injection confirmation (intrusive)",
+        target_types=("web",), requires=("authorized_target", "http"), risk="intrusive"),
+    "web.el_injection": ValidationCapability(
+        id="web.eli.validate", applies_to="web.el_injection",
+        name="EL/OGNL-injection confirmation (intrusive)", target_types=("web",),
+        requires=("authorized_target", "http"), risk="intrusive", changes_state=True),
+
+    # --- CVE/SAST-derived or config-review classes: manual confirmation ----------
+    "memory": ValidationCapability(
+        id="memory.validate", applies_to="memory",
+        name="Memory-safety confirmation (manual, via CVE/SAST)", target_types=("code", "network"),
+        requires=(), risk="controlled_validation"),
+    "cicd": ValidationCapability(
+        id="cicd.validate", applies_to="cicd", name="CI/CD config review (manual)",
+        target_types=("code",), requires=(), risk="controlled_validation"),
+    "iac": ValidationCapability(
+        id="iac.validate", applies_to="iac", name="IaC config review (manual)",
+        target_types=("cloud", "code"), requires=(), risk="controlled_validation"),
+    "crypto.hardcoded_key": ValidationCapability(
+        id="crypto.hardcoded_key.validate", applies_to="crypto.hardcoded_key",
+        name="Hardcoded-key review (manual)", target_types=("code",), requires=(),
+        risk="controlled_validation"),
+
+    # --- wireless / IoT: only with explicit authorization + physical access ------
+    "wireless": ValidationCapability(
+        id="wireless.validate", applies_to="wireless",
+        name="Wireless validation (intrusive, needs authorized RF access)",
+        target_types=("network",), requires=("authorized_target",), risk="intrusive"),
+    "iot.default_credentials": ValidationCapability(
+        id="iot.default_creds.validate", applies_to="iot.default_credentials",
+        name="IoT default-credential check (intrusive)", target_types=("network",),
+        requires=("authorized_target",), risk="intrusive"),
 }
 
 

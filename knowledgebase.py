@@ -1199,6 +1199,373 @@ KB: dict[str, dict] = {
         "patch": "Reserve internal names on public registries, pin/scoped registries with an explicit "
         "index, use lockfiles + integrity hashes, and verify package provenance.",
     },
+
+    # ============================ AUTHENTICATION / SESSION / IDENTITY ======
+    "auth.bypass": {
+        "cwe": "CWE-287",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "capec": ["CAPEC-115"],
+        "severity": "high",
+        "title": "Authentication bypass",
+        "description": "An authenticated resource is reachable without valid credentials (forced browsing, "
+        "flawed check, or a parameter that disables the check).",
+        "attack": "Attacker reaches protected functionality directly — via forced browsing, tampering with an "
+        "auth flag, or a logic flaw — without proving identity.",
+        "patch": "Enforce authentication server-side on every protected route, deny by default, and centralize "
+        "the auth check rather than repeating it per handler.",
+    },
+    "auth.weak_password_policy": {
+        "cwe": "CWE-521",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "medium",
+        "title": "Weak password policy",
+        "description": "The application accepts weak/short/common passwords or lacks lockout/throttling.",
+        "attack": "Attacker brute-forces or credential-stuffs accounts because weak passwords are allowed and "
+        "attempts aren't throttled.",
+        "patch": "Enforce length/complexity + breached-password checks, add rate-limiting/lockout with backoff, "
+        "and offer MFA.",
+    },
+    "auth.no_lockout": {
+        "cwe": "CWE-307",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "capec": ["CAPEC-49"],
+        "severity": "medium",
+        "title": "No brute-force protection on authentication",
+        "description": "The login/authentication endpoint shows no lockout, throttling, or rate-limiting.",
+        "attack": "Attacker runs high-rate password guessing / credential stuffing against the login with no "
+        "throttle, eventually gaining access.",
+        "patch": "Add per-account + per-IP rate limiting, exponential backoff/lockout, CAPTCHA on anomalies, "
+        "and alert on spikes; prefer MFA.",
+    },
+    "auth.session_fixation": {
+        "cwe": "CWE-384",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "capec": ["CAPEC-61"],
+        "severity": "medium",
+        "title": "Session fixation",
+        "description": "The session identifier is not rotated after authentication.",
+        "attack": "Attacker plants a known session id in the victim's browser; after the victim logs in, the "
+        "attacker reuses that same id to ride the authenticated session.",
+        "patch": "Regenerate the session id on privilege change (login), invalidate the pre-auth session, and "
+        "use Secure/HttpOnly/SameSite cookies.",
+    },
+    "auth.session_not_invalidated": {
+        "cwe": "CWE-613",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "medium",
+        "title": "Session not invalidated on logout/expiry",
+        "description": "Sessions/tokens remain valid after logout or well past a reasonable lifetime.",
+        "attack": "A captured token keeps working after the user logs out or long after issuance, widening the "
+        "window for session hijacking.",
+        "patch": "Invalidate server-side session state on logout, enforce absolute + idle timeouts, and support "
+        "token revocation.",
+    },
+    "auth.saml_misconfig": {
+        "cwe": "CWE-347",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "SAML/SSO assertion validation weakness",
+        "description": "SAML responses are accepted with weak signature validation (XML signature wrapping, "
+        "unsigned assertions, or missing audience/recipient checks).",
+        "attack": "Attacker forges or wraps a SAML assertion (XSW) to authenticate as an arbitrary user, "
+        "including administrators.",
+        "patch": "Verify the XML signature over the correct element, reject unsigned assertions, validate "
+        "audience/recipient/NotOnOrAfter, and use a hardened SAML library.",
+    },
+
+    # ============================ BUSINESS LOGIC (manual-validation heavy) =
+    "logic.workflow_bypass": {
+        "cwe": "CWE-841",
+        "owasp": "A04:2021 Insecure Design",
+        "capec": ["CAPEC-207"],
+        "severity": "high",
+        "title": "Workflow / state-machine bypass",
+        "description": "A multi-step workflow can be completed out of order or with a step skipped (server "
+        "doesn't enforce the state machine). Requires manual validation.",
+        "attack": "Attacker jumps straight to a later step (e.g. checkout without payment, approval without "
+        "review) by calling endpoints out of sequence.",
+        "patch": "Enforce the state machine server-side: validate the current state and required prior steps on "
+        "every transition; never trust client-provided step/state.",
+    },
+    "logic.price_manipulation": {
+        "cwe": "CWE-840",
+        "owasp": "A04:2021 Insecure Design",
+        "severity": "high",
+        "title": "Price / quantity manipulation",
+        "description": "Price, quantity, or discount is trusted from the client instead of recomputed "
+        "server-side. Requires manual validation.",
+        "attack": "Attacker tampers with the amount/price/quantity (or negative values) in the request to pay "
+        "less, get more, or trigger refunds.",
+        "patch": "Recompute all monetary/quantity values server-side from authoritative data; validate ranges; "
+        "never trust client totals.",
+    },
+    "logic.replay": {
+        "cwe": "CWE-294",
+        "owasp": "A04:2021 Insecure Design",
+        "capec": ["CAPEC-60"],
+        "severity": "medium",
+        "title": "Request/transaction replay",
+        "description": "A sensitive request can be replayed because it lacks a nonce/idempotency key. Requires "
+        "manual validation.",
+        "attack": "Attacker captures and re-sends a valid request (payment, coupon, transfer) multiple times to "
+        "duplicate its effect.",
+        "patch": "Use idempotency keys / one-time nonces, server-side de-duplication, and short request "
+        "validity windows for sensitive actions.",
+    },
+    "logic.race_condition": {
+        "cwe": "CWE-362",
+        "owasp": "A04:2021 Insecure Design",
+        "capec": ["CAPEC-26"],
+        "severity": "high",
+        "title": "Race condition (TOCTOU) in sensitive operation",
+        "description": "Concurrent requests can interleave on a shared resource without atomicity/locking "
+        "(e.g. balance, coupon, inventory). Requires manual validation.",
+        "attack": "Attacker fires many parallel requests to exploit the check-then-act gap — double-spending a "
+        "balance, redeeming a coupon multiple times, or oversubscribing stock.",
+        "patch": "Make the operation atomic: DB transactions with row locks / conditional updates, unique "
+        "constraints, and idempotency; avoid check-then-act on shared state.",
+    },
+    "logic.tenant_isolation": {
+        "cwe": "CWE-668",
+        "owasp": "A01:2021 Broken Access Control",
+        "severity": "high",
+        "title": "Tenant-boundary / isolation violation",
+        "description": "A multi-tenant app lets one tenant reach another tenant's data/resources (missing "
+        "tenant scoping on queries). Requires manual validation.",
+        "attack": "Attacker in tenant A supplies identifiers or manipulates context to read/modify tenant B's "
+        "data — a serious multi-tenant breach.",
+        "patch": "Scope every query and authorization check by tenant id derived from the session (never the "
+        "request body); add tenant-isolation tests.",
+    },
+
+    # ============================ INJECTION VARIANTS (extended) ============
+    "web.crlf": {
+        "cwe": "CWE-93",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-31"],
+        "severity": "medium",
+        "title": "CRLF injection",
+        "description": "User input containing CR/LF reaches a header/log/protocol context unescaped.",
+        "attack": "Attacker injects `\\r\\n` to add headers, split responses, poison logs, or smuggle content.",
+        "patch": "Strip/encode CR/LF from any user input used in headers/logs; use framework APIs that "
+        "disallow header injection.",
+    },
+    "web.response_splitting": {
+        "cwe": "CWE-113",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-34"],
+        "severity": "medium",
+        "title": "HTTP response splitting",
+        "description": "CRLF in a response header lets an attacker split the response into two.",
+        "attack": "Attacker crafts input that injects a second HTTP response, enabling cache poisoning or XSS "
+        "against intermediaries/victims.",
+        "patch": "Never place raw user input in response headers; sanitize CR/LF and use safe header APIs.",
+    },
+    "web.log_injection": {
+        "cwe": "CWE-117",
+        "owasp": "A09:2021 Security Logging & Monitoring Failures",
+        "severity": "low",
+        "title": "Log injection / forging",
+        "description": "Unsanitized input is written to logs, allowing forged entries or log-viewer XSS.",
+        "attack": "Attacker injects newlines/control sequences to forge log entries, hide activity, or attack "
+        "a log-viewing UI.",
+        "patch": "Encode/escape untrusted data before logging, use structured logging, and sanitize control "
+        "characters.",
+    },
+    "web.el_injection": {
+        "cwe": "CWE-917",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-137"],
+        "severity": "high",
+        "title": "Expression Language (EL/OGNL) injection",
+        "description": "User input is evaluated by an expression-language engine (Spring EL, OGNL, MVEL).",
+        "attack": "Attacker submits an EL/OGNL expression that the framework evaluates, often escalating to "
+        "remote code execution (e.g. classic Struts OGNL bugs).",
+        "patch": "Never evaluate user input as an expression; disable dynamic EL on untrusted input, patch the "
+        "framework, and validate input.",
+    },
+
+    # ============================ MEMORY / BINARY (knowledge; via CVE/SAST) =
+    "memory.buffer_overflow": {
+        "cwe": "CWE-120",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "capec": ["CAPEC-100"],
+        "severity": "high",
+        "title": "Buffer overflow",
+        "description": "A fixed-size buffer is written past its bounds. Detected via known CVEs / SAST — this "
+        "platform does not fuzz binaries directly.",
+        "attack": "Attacker supplies oversized input to overwrite adjacent memory / return addresses, often "
+        "achieving code execution or a crash.",
+        "patch": "Use memory-safe APIs/languages, bounds-check, enable compiler mitigations (ASLR, stack "
+        "canaries, NX, FORTIFY), and patch known-vulnerable components.",
+    },
+    "memory.use_after_free": {
+        "cwe": "CWE-416",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Use-after-free",
+        "description": "Memory is used after being freed. Detected via known CVEs / SAST, not direct fuzzing.",
+        "attack": "Attacker grooms the heap so the freed object is reallocated under their control, leading to "
+        "code execution.",
+        "patch": "Null pointers after free, use smart pointers/RAII or memory-safe languages, enable ASAN in "
+        "testing, and patch affected components.",
+    },
+    "memory.integer_overflow": {
+        "cwe": "CWE-190",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "medium",
+        "title": "Integer overflow/underflow",
+        "description": "Arithmetic wraps around its type bounds, often feeding a size/index calculation. "
+        "Detected via known CVEs / SAST.",
+        "attack": "Attacker triggers a wrap so a length/allocation becomes wrong, leading to a buffer "
+        "overflow or logic error.",
+        "patch": "Use checked arithmetic / safe integer types, validate sizes before allocation, and patch "
+        "affected components.",
+    },
+
+    # ============================ WIRELESS / IoT (where in scope) ==========
+    "wireless.weak_encryption": {
+        "cwe": "CWE-326",
+        "owasp": "Wireless Security",
+        "severity": "high",
+        "title": "Weak wireless encryption",
+        "description": "A wireless network uses WEP/WPA(1) or WPA2-PSK with a weak passphrase.",
+        "attack": "Attacker within range captures the handshake and cracks the key offline (or breaks WEP "
+        "instantly), then decrypts traffic and joins the network.",
+        "patch": "Use WPA2/WPA3-Enterprise (802.1X) or a long random PSK; disable WEP/WPA1; segment guest "
+        "networks.",
+    },
+    "iot.default_credentials": {
+        "cwe": "CWE-1392",
+        "owasp": "IoT Security",
+        "capec": ["CAPEC-70"],
+        "severity": "high",
+        "title": "IoT/device default credentials",
+        "description": "An embedded device / management interface uses vendor default credentials.",
+        "attack": "Attacker logs in with well-known defaults to take over the device, join it to a botnet, or "
+        "pivot into the network.",
+        "patch": "Change defaults on provisioning, enforce unique per-device credentials, disable unused "
+        "management interfaces, and keep firmware updated.",
+    },
+    "iot.outdated_firmware": {
+        "cwe": "CWE-1329",
+        "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "severity": "high",
+        "title": "Outdated / vulnerable device firmware",
+        "description": "Device firmware version maps to known CVEs.",
+        "attack": "Attacker uses a public exploit for the firmware version to compromise the device remotely.",
+        "patch": "Apply firmware updates, subscribe to vendor advisories, and isolate devices that can no "
+        "longer be patched.",
+    },
+
+    # ============================ CI/CD PIPELINE ===========================
+    "cicd.excessive_permissions": {
+        "cwe": "CWE-732",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "high",
+        "title": "Over-privileged CI/CD workflow",
+        "description": "A pipeline job/token has broad write permissions (e.g. GITHUB_TOKEN write-all, admin "
+        "cloud role) beyond its need.",
+        "attack": "A compromised dependency or PR-triggered workflow abuses the broad token to push code, "
+        "publish artifacts, or reach cloud — a supply-chain foothold.",
+        "patch": "Apply least-privilege tokens (read-only by default), scope per-job permissions, and require "
+        "approvals for privileged workflows.",
+    },
+    "cicd.secret_exposure": {
+        "cwe": "CWE-798",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "Secret exposed in CI/CD",
+        "description": "Secrets are printed to logs, passed via env to untrusted steps, or available to "
+        "fork/PR workflows.",
+        "attack": "Attacker triggers a workflow (or reads logs) to exfiltrate the secret, then abuses the "
+        "downstream system.",
+        "patch": "Use the platform secret store, mask secrets in logs, don't expose secrets to PR/fork "
+        "triggers, and rotate on exposure.",
+    },
+    "cicd.untrusted_action": {
+        "cwe": "CWE-829",
+        "owasp": "A08:2021 Software & Data Integrity Failures",
+        "severity": "medium",
+        "title": "Unpinned / untrusted CI action or image",
+        "description": "A pipeline uses a third-party action/image by mutable tag (not a pinned digest).",
+        "attack": "The upstream action/image is compromised or retagged, executing attacker code in the build "
+        "with access to secrets/artifacts.",
+        "patch": "Pin actions/images to a full commit SHA / digest, review third-party code, and mirror "
+        "trusted copies.",
+    },
+
+    # ============================ IaC (Terraform / CFN / manifests) ========
+    "iac.public_exposure": {
+        "cwe": "CWE-668",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "high",
+        "title": "IaC provisions public exposure",
+        "description": "Infrastructure-as-code declares a world-open resource (0.0.0.0/0 ingress, public "
+        "bucket, public IP on a DB).",
+        "attack": "Once applied, the resource is internet-exposed exactly as coded — attackers reach it "
+        "directly.",
+        "patch": "Restrict CIDRs and public access in the IaC, add policy-as-code (OPA/Checkov) gates in CI, "
+        "and review diffs before apply.",
+    },
+    "iac.hardcoded_secret": {
+        "cwe": "CWE-798",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "Hardcoded secret in IaC",
+        "description": "A credential/key/token is hardcoded in Terraform/CloudFormation/manifests or state.",
+        "attack": "Attacker reads the secret from the repo/state and uses it against the provisioned "
+        "infrastructure.",
+        "patch": "Use a secrets manager / variables, keep secrets out of state (or encrypt state), scan IaC in "
+        "CI, and rotate exposed secrets.",
+    },
+    "iac.insecure_default": {
+        "cwe": "CWE-1188",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Insecure default in IaC",
+        "description": "IaC leaves an insecure default (no encryption, no logging, weak TLS policy, public "
+        "snapshot).",
+        "attack": "The deployed resource inherits the weak default, reducing confidentiality/auditability if "
+        "attacked.",
+        "patch": "Set secure values explicitly (encryption, logging, private access), enforce via "
+        "policy-as-code, and use hardened modules.",
+    },
+
+    # ============================ DATABASE / CRYPTO (extended) =============
+    "db.excessive_privileges": {
+        "cwe": "CWE-250",
+        "owasp": "A01:2021 Broken Access Control",
+        "severity": "medium",
+        "title": "Database account with excessive privileges",
+        "description": "The application's DB account has broad rights (DBA/superuser, cross-schema) beyond "
+        "what it needs.",
+        "attack": "If the app is breached (e.g. via SQLi), the over-privileged account lets the attacker read "
+        "everything or run admin operations.",
+        "patch": "Grant least privilege per app (scoped schema, no DDL/superuser), separate accounts by "
+        "function, and audit grants.",
+    },
+    "db.unencrypted_transport": {
+        "cwe": "CWE-319",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "medium",
+        "title": "Database connections without TLS",
+        "description": "Client-to-database traffic is not encrypted in transit.",
+        "attack": "An on-path attacker sniffs credentials and query data between app and database.",
+        "patch": "Require TLS for DB connections (verify server cert), restrict to private networks, and "
+        "rotate any exposed credentials.",
+    },
+    "crypto.hardcoded_key": {
+        "cwe": "CWE-321",
+        "owasp": "A02:2021 Cryptographic Failures",
+        "severity": "high",
+        "title": "Hardcoded cryptographic key",
+        "description": "A symmetric/private key or HMAC secret is embedded in code/config.",
+        "attack": "Attacker extracts the key from the artifact and forges tokens/signatures or decrypts "
+        "protected data.",
+        "patch": "Store keys in a KMS/secret manager, inject at runtime, rotate exposed keys, and separate "
+        "keys per environment.",
+    },
 }
 
 

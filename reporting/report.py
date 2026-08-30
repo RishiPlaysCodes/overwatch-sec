@@ -97,6 +97,11 @@ def summarize(assessment) -> dict:
 def write_json(assessment, path: str) -> str:
     data = assessment.to_dict()
     data["summary"] = summarize(assessment)
+    try:
+        from core import knowledge as _kn
+        data["coverage_by_domain"] = _kn.coverage_by_domain(assessment.findings)
+    except Exception:
+        pass
     with open(path, "w") as fh:
         json.dump(data, fh, indent=2)
     return path
@@ -170,16 +175,29 @@ def write_markdown(assessment, path: str) -> str:
 
     # indicator classification (vuln / misconfig / threat indicator / active compromise)
     try:
-        from threat_detection.detector import classify
+        from threat_detection.detector import classify, classify_detailed
         cls = classify(fs)
         if cls.get("threat_indicator") or cls.get("active_compromise_indicator"):
+            d = classify_detailed(fs)
             L.append("## Indicators\n")
             L.append(f"- Vulnerabilities: {cls['vulnerability']} | Misconfigurations: {cls['misconfiguration']} "
                      f"| Threat indicators: {cls['threat_indicator']} "
                      f"| **Active-compromise indicators: {cls['active_compromise_indicator']}**")
-            if cls["active_compromise_indicator"]:
-                L.append("\n> 🚨 **Active-compromise indicators present** — investigate immediately "
-                         "(these are indicators to triage, not a definitive breach conclusion).")
+            L.append("")
+            L.append("**Evidence-graded classification** (least → most severe; a matched IOC is at most "
+                     "_possible compromise_, and _validated compromise_ requires independent confirmation):\n")
+            L.append(f"- Vulnerability: {d['vulnerability']} | Misconfiguration: {d['misconfiguration']} "
+                     f"| Threat indicator (IOC): {d['threat_indicator']} "
+                     f"| Suspicious activity: {d['suspicious_activity']} "
+                     f"| **Possible compromise: {d['possible_compromise']}** "
+                     f"| **Validated compromise: {d['validated_compromise']}**")
+            if d["validated_compromise"]:
+                L.append("\n> 🚨 **Validated-compromise indicator(s)** — an independently confirmed compromise "
+                         "signal is present. Initiate incident response.")
+            elif d["possible_compromise"]:
+                L.append("\n> 🚨 **Possible-compromise indicators present** — strong signals (e.g. IOC/C2 match) "
+                         "to investigate immediately. These are indicators to triage, not a definitive breach "
+                         "conclusion.")
             L.append("")
     except Exception:
         pass
@@ -311,6 +329,15 @@ def write_markdown(assessment, path: str) -> str:
         L.append("```")
         L.append(assessment.coverage.render())
         L.append("```")
+        # measurable per-domain coverage (knowledge + validators + this-scan outcomes)
+        try:
+            from core import knowledge as _kn
+            L.append("\n### Coverage by domain\n")
+            L.append("```")
+            L.append(_kn.render_coverage_matrix(assessment.findings))
+            L.append("```")
+        except Exception:
+            pass
     L.append("\n> Detection & authorized-assessment tool. Findings are indicators — "
              "validate before acting. This is not a claim of '100% secure'.")
     with open(path, "w") as fh:

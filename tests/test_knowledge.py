@@ -24,12 +24,17 @@ def test_kb_expanded_and_wellformed():
             assert e.get(k), f"{fid} missing {k}"
         assert e["severity"] in ("critical", "high", "medium", "low", "info"), fid
     # the upgrade added meaningful breadth
-    assert len(kb.KB) >= 95
-    # a representative sample of the newly added classes exists
+    assert len(kb.KB) >= 125
+    # a representative sample across families (incl. the latest breadth pass)
     for fid in ("web.ssrf", "web.ssti", "web.idor", "web.open_redirect", "web.xxe",
                 "web.deserialization", "web.command_injection", "web.jwt_weak",
                 "api.bola", "api.bfla", "db.default_creds", "crypto.weak_hash",
-                "supplychain.dependency_confusion"):
+                "supplychain.dependency_confusion",
+                "auth.bypass", "auth.session_fixation", "auth.saml_misconfig",
+                "logic.workflow_bypass", "logic.race_condition", "logic.tenant_isolation",
+                "web.crlf", "web.el_injection", "memory.buffer_overflow",
+                "wireless.weak_encryption", "iot.default_credentials",
+                "cicd.excessive_permissions", "iac.public_exposure", "crypto.hardcoded_key"):
         assert fid in kb.KB, f"expected {fid} in KB"
 
 
@@ -45,11 +50,12 @@ def test_catalog_matches_kb():
 
 def test_domain_coverage_is_honest():
     dom = knowledge.domain_coverage()
-    # indirectly-reasoned domains are never marked "covered"
-    assert dom["memory_safety"]["status"] == "indirect"
-    assert dom["wireless_iot"]["status"] == "indirect"
+    # active_directory is reasoned indirectly (via identity export), never "covered" by KB alone
+    assert dom["active_directory"]["status"] == "indirect"
     # KB-backed families are covered with a positive count
     assert dom["web"]["status"] == "covered" and dom["web"]["kb_entries"] > 0
+    assert dom["identity"]["status"] == "covered"      # auth/session KB added
+    assert dom["business_logic"]["status"] == "covered"  # logic KB added
     s = knowledge.summary()
     assert s["kb_entries"] == len(kb.KB)
     assert "not" in s["disclaimer"].lower()  # never claims exhaustive
@@ -122,10 +128,17 @@ def test_validation_coverage_counts_and_reasons():
 def test_manual_state_when_permitted_but_no_checker():
     _no_network()
     pol = Policy.for_profile("redteam", "deep")   # allows controlled validation
-    f = Finding.from_legacy({"id": "web.open_redirect", "evidence": "x", "asset": "example.com"})
+    # web.host_header has a registered capability but no automated checker
+    f = Finding.from_legacy({"id": "web.host_header", "evidence": "x", "asset": "example.com"})
     validator.validate([f], pol, context={"has_auth": True, "in_scope": True})
-    # no auto-exploit checker is shipped -> honest manual requirement, not a fake pass
+    # no auto checker is shipped -> honest manual requirement, not a fake pass
     assert f.validation == "manual_validation_required"
+
+
+def test_open_redirect_has_real_safe_validator():
+    # the open-redirect capability is backed by an actual checker (not a placeholder)
+    fn = validator._validator_for("web.open_redirect")
+    assert fn is validator._validate_open_redirect
 
 
 def test_open_redirect_indicator_is_passive_and_precise():

@@ -100,6 +100,7 @@ def cmd_list_capabilities() -> int:
 def cmd_list_knowledge() -> int:
     from core import knowledge
     print(knowledge.render())
+    print("\n" + knowledge.render_coverage_matrix())
     return 0
 
 
@@ -467,6 +468,11 @@ def main() -> int:
 
     # console output
     print("\n" + assessment.coverage.render())
+    try:
+        from core import knowledge as _kn
+        print("\n" + _kn.render_coverage_matrix(assessment.findings))
+    except Exception:
+        pass
     s = report_mod.summarize(assessment)
     print(f"\n{C.BOLD}RESULT{C.RESET}: score {s['security_score']}/100 | "
           f"crit {s['counts']['critical']} high {s['counts']['high']} med {s['counts']['medium']} "

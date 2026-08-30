@@ -99,6 +99,63 @@ def _integration():
         out.append(("integration.compare_self_persistent", diff["counts"]["new"] == 0, ""))
     finally:
         srv.shutdown()
+    out += _lab_pipeline()
+    return out
+
+
+def _lab_pipeline():
+    """
+    End-to-end against the SHIPPED vulnerable lab (lab/app.py):
+    detection -> validation -> evidence -> correlation -> report -> redaction.
+    """
+    import importlib.util
+    from core import orchestrator
+    from core.policy import Policy
+    from core import knowledge
+    from reporting import report as report_mod
+
+    spec = importlib.util.spec_from_file_location("lab_app", os.path.join(ROOT, "lab", "app.py"))
+    labmod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(labmod)
+
+    srv = HTTPServer(("127.0.0.1", 0), labmod.Handler)
+    url = f"http://127.0.0.1:{srv.server_address[1]}"
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    out = []
+    try:
+        d = tempfile.mkdtemp()
+        pol = Policy.for_profile("redteam", "deep")  # permits controlled validation
+        a = orchestrator.run(url, profile="web", mode="deep", policy=pol,
+                             outdir=d, secrets=["deadbeef"])
+        ids = {f.id for f in a.findings}
+        out.append(("lab.detects_headers", any(i.startswith("web.header") for i in ids), str(ids)))
+        out.append(("lab.detects_cookie", "web.cookie.flags" in ids, ""))
+        out.append(("lab.detects_open_redirect", "web.open_redirect" in ids, ""))
+        validated = [f for f in a.findings if f.validation == "validated"]
+        out.append(("lab.has_validated_finding", len(validated) > 0, ""))
+        out.append(("lab.validated_has_evidence",
+                    bool(validated and validated[0].validation_evidence.get("tool")
+                         and validated[0].validation_evidence.get("timestamp")), ""))
+        or_f = next((f for f in a.findings if f.id == "web.open_redirect"), None)
+        out.append(("lab.open_redirect_validated",
+                    or_f is not None and or_f.validation == "validated",
+                    (or_f.validation if or_f else "missing")))
+        vc = a.coverage.validation_coverage()
+        out.append(("lab.validation_coverage", vc["selected"] >= 1 and vc["validated"] >= 1, str(vc)))
+        dom = knowledge.coverage_by_domain(a.findings)
+        out.append(("lab.domain_coverage_web", dom["web"]["validated"] >= 1, ""))
+        md = report_mod.write_markdown(a, os.path.join(d, "report.md"))
+        text = open(md).read()
+        out.append(("lab.report_coverage_by_domain", "Coverage by domain" in text, ""))
+        out.append(("lab.report_validated_section", "Validated findings" in text, ""))
+        # the only mention of "100% secure" must be the disclaimer that it is NOT claimed
+        low = text.lower()
+        out.append(("lab.no_overclaim", "not a claim of" in low and "100% secure" in low, ""))
+        # operator secret must be redacted everywhere
+        secret_leak = any("deadbeef" in (f.evidence or "") for f in a.findings) or ("deadbeef" in text)
+        out.append(("lab.secret_redacted", not secret_leak, ""))
+    finally:
+        srv.shutdown()
     return out
 
 

@@ -131,11 +131,54 @@ def _validate_cookie(f) -> tuple:
     return ("not_exploitable", "cookie now has Secure/HttpOnly/SameSite")
 
 
+def _validate_open_redirect(f) -> tuple:
+    """
+    Safely confirm an open redirect by sending ONE request with a benign external
+    marker in the redirect parameter and inspecting the Location header — the
+    redirect is NEVER followed (custom handler returns None). Non-destructive:
+    we only observe whether the server would bounce us off-site.
+    """
+    import re
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urlparse
+    # candidate param names: prefer the ones the detector named in the evidence
+    params: list[str] = []
+    m = re.search(r"parameter\(s\)[^:]*:\s*([a-z0-9_,\s]+)", f.evidence or "", re.I)
+    if m:
+        params = [p.strip() for p in m.group(1).split(",") if p.strip() and p.strip().isidentifier()]
+    if not params:
+        params = ["next", "url", "redirect", "return"]
+    base = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
+    probe = "https://vulnscan-probe.example/ext-check"
+
+    class _NoFollow(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None  # observe, never follow
+
+    opener = urllib.request.build_opener(_NoFollow)
+    for p in params[:4]:
+        sep = "&" if urlparse(base).query else "?"
+        url = f"{base}{sep}{p}={probe}"
+        loc = ""
+        try:
+            r = opener.open(urllib.request.Request(url, headers={"User-Agent": "vulnscan-validate/1.0"}), timeout=12)
+            loc = r.headers.get("Location", "") or ""
+        except urllib.error.HTTPError as e:
+            loc = (e.headers.get("Location", "") if e.headers else "") or ""
+        except Exception:
+            continue
+        if "vulnscan-probe.example" in loc:
+            return ("validated", f"redirects off-site to attacker-controlled URL via '{p}' (Location not followed)")
+    return ("not_validated", "no off-site redirect reflected in Location on re-check")
+
+
 register("web.header", _validate_missing_header)
 register("web.xss.reflected", _validate_reflection)
 register("recon.dir_listing", _validate_dir_listing)
 register("api.cors", _validate_cors)
 register("web.cookie", _validate_cookie)
+register("web.open_redirect", _validate_open_redirect)
 
 
 # result-code -> (validation_state, confidence)

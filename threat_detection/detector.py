@@ -37,7 +37,7 @@ _PERSIST_HINT = re.compile(r"(curl|wget).+(sh|bash)|reverse.?shell|/etc/cron|@re
 
 
 def classify(findings) -> dict:
-    """Group findings by indicator category for the report."""
+    """Group findings by indicator category for the report (legacy 4-bucket view)."""
     buckets = {VULNERABILITY: [], MISCONFIGURATION: [], THREAT_INDICATOR: [], ACTIVE_COMPROMISE: []}
     for f in findings:
         kind = getattr(f, "kind", "vulnerability")
@@ -46,6 +46,51 @@ def classify(findings) -> dict:
         else:
             buckets[VULNERABILITY].append(f)
     return {k: len(v) for k, v in buckets.items()}
+
+
+# Finer, evidence-graded threat model (spec §24). Ordered least -> most severe.
+# We NEVER jump to "compromise" without strong evidence: a matched IOC / known-bad
+# infrastructure is at most POSSIBLE_COMPROMISE, and VALIDATED_COMPROMISE requires
+# an independently confirmed finding. Behavioural heuristics stay SUSPICIOUS.
+CLASSIFICATION_STATES = (
+    "vulnerability", "misconfiguration", "threat_indicator",
+    "suspicious_activity", "possible_compromise", "validated_compromise",
+)
+_IOC_HINTS = ("malicious", "c2", "ioc", "known-bad", "known_bad")
+
+
+def _state6(f) -> str:
+    kind = getattr(f, "kind", "vulnerability")
+    val = getattr(f, "validation", "detected")
+    fid = getattr(f, "id", "")
+    ev = (getattr(f, "evidence", "") or "").lower()
+    if kind == ACTIVE_COMPROMISE:
+        # strong indicator; only call it validated if a check confirmed it
+        if val in ("validated", "exploitable"):
+            return "validated_compromise"
+        return "possible_compromise"
+    if kind == THREAT_INDICATOR:
+        # IOC / known-bad match vs. purely behavioural anomaly
+        if any(h in fid for h in _IOC_HINTS) or "ioc feed" in ev or "known-malicious" in ev:
+            return "threat_indicator"
+        return "suspicious_activity"
+    if kind == MISCONFIGURATION:
+        return "misconfiguration"
+    return "vulnerability"
+
+
+def classify_detailed(findings) -> dict:
+    """
+    Evidence-graded 6-state classification (spec §24). Backward-compatible: this
+    is additive — classify() still returns the legacy buckets. Honest by design:
+    heuristic/behavioural signals are SUSPICIOUS_ACTIVITY, IOC matches are
+    THREAT_INDICATOR, strong active signals are POSSIBLE_COMPROMISE, and only an
+    independently validated finding is VALIDATED_COMPROMISE.
+    """
+    out = {s: 0 for s in CLASSIFICATION_STATES}
+    for f in findings:
+        out[_state6(f)] += 1
+    return out
 
 
 def _f(fid, title, sev, kind, evidence, attack, patch, mitre=None):
