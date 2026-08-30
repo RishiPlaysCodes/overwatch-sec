@@ -124,6 +124,41 @@ def prompt_mode() -> str:
     return "deep" if input("Choice [1-2] (default 1): ").strip() == "2" else "fast"
 
 
+# device/target menu -> (label, hint, forced kind, default profile)
+DEVICE_MENU = [
+    ("Website / web app",        "e.g. https://example.com",          "web",        "web"),
+    ("API endpoint",             "e.g. https://api.example.com",      "api",        "web"),
+    ("Bug-bounty domain (recon)","e.g. example.com",                  "recon",      "bugbounty"),
+    ("Network / host / IP",      "e.g. 192.168.1.10 or 10.0.0.0/24",  "network",    "network"),
+    ("Mobile app",               "path to .apk / .ipa",               "mobile",     "mobile"),
+    ("Source code folder",       "path to a project dir",             "code",       "code"),
+    ("Cloud / IaC",              "aws|azure|gcp or ./terraform",      "cloud",      "cloud"),
+    ("Container image",          "e.g. nginx:1.21",                   "container",  "cloud"),
+    ("Kubernetes manifests",     "path to k8s yaml dir",              "kubernetes", "cloud"),
+    ("Linux host (export JSON)", "path to host export",               "linux",      "enterprise"),
+    ("Windows host (export JSON)","path to host export",              "windows",    "enterprise"),
+]
+
+
+def wizard():
+    """Interactive one-command flow: ask device type -> target -> mode.
+    Returns (target, forced_kind, profile, mode)."""
+    print(BANNER)
+    print(f"{C.CYN}{C.BOLD}What do you want to scan?{C.RESET}")
+    for i, (label, hint, _k, _p) in enumerate(DEVICE_MENU, 1):
+        print(f"  {i:2}. {label:26} {C.BLU}{hint}{C.RESET}")
+    try:
+        raw = input("\nChoice [1-11] (default 1): ").strip() or "1"
+        idx = int(raw) - 1 if raw.isdigit() else 0
+        idx = idx if 0 <= idx < len(DEVICE_MENU) else 0
+        label, hint, kind, profile = DEVICE_MENU[idx]
+        target = input(f"\nEnter target ({hint}): ").strip()
+        mode = prompt_mode()
+    except (EOFError, KeyboardInterrupt):
+        return "", None, "", "fast"
+    return target, kind, profile, mode
+
+
 def authorize(target: str, profile: str, mode: str, policy: Policy, auto_yes: bool) -> bool:
     print(BANNER)
     print(f"Target : {C.BOLD}{target}{C.RESET}")
@@ -274,23 +309,30 @@ def main() -> int:
         print(f"triage: {spec.strip()} -> {status.strip()}  (saved {args.triage_file})")
         return 0
 
-    # target + profile + mode (interactive if missing)
+    # target + profile + mode (interactive wizard if no target given)
     target = args.target
     profile = (args.profile or "").lower()
+    force_kind = args.force_kind
+    mode = args.mode
     if not target:
-        profile = profile or prompt_profile()
-        target = input("\nEnter target: ").strip()
-        mode = args.mode or ("deep" if args.deep else prompt_mode())
+        # one-command interactive flow: asks device type -> target -> mode
+        target, wk, wp, wm = wizard()
+        force_kind = force_kind or wk
+        profile = profile or wp
+        mode = mode or wm
     else:
         if not profile:
             # infer a sensible default profile from the detected kind
-            kind = args.force_kind or detect(target)["kind"]
+            kind = force_kind or detect(target)["kind"]
             profile = {"recon": "bugbounty", "web": "web", "api": "web", "network": "network",
                        "mobile": "mobile", "cloud": "cloud", "container": "cloud",
-                       "kubernetes": "cloud", "code": "code"}.get(kind, "bugbounty")
-        mode = args.mode or ("deep" if args.deep else config.load_profile(profile).get("default_mode", "fast"))
+                       "kubernetes": "cloud", "code": "code", "linux": "enterprise",
+                       "windows": "enterprise"}.get(kind, "bugbounty")
+        mode = mode or ("deep" if args.deep else config.load_profile(profile).get("default_mode", "fast"))
     if not target:
         print("No target given."); return 2
+    if not mode:
+        mode = "deep" if args.deep else "fast"
 
     policy = config.load_policy(profile, mode, args.policy)
     if args.workers:
@@ -303,9 +345,9 @@ def main() -> int:
     # dry-run: show plan and exit
     if args.dry_run:
         plan = build_plan(target, profile, mode, policy)
-        if args.force_kind:
-            plan["kind"] = args.force_kind
-            plan["scanner"] = KIND_TO_SCANNER.get(args.force_kind, plan["scanner"])
+        if force_kind:
+            plan["kind"] = force_kind
+            plan["scanner"] = KIND_TO_SCANNER.get(force_kind, plan["scanner"])
         print(BANNER)
         print(f"DRY RUN — no tests will be executed\n")
         print(f"Target   : {target}")
@@ -333,7 +375,7 @@ def main() -> int:
 
     assessment = run_assessment(
         target, profile=profile, mode=mode, policy=policy,
-        outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind,
+        outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=force_kind,
         triage_store=triage_store, load_plugins=not args.no_plugins,
         identity_file=args.identity_file, threat_file=args.threat_file, ioc_file=args.ioc_file,
         telemetry_file=args.telemetry_file, se_file=args.se_file, load_test=args.load_test)
