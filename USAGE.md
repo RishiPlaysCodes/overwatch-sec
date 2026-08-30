@@ -1,31 +1,31 @@
 # Usage
 
-# vulnscan — Usage Guide
+# overwatch — Usage Guide
 
 > Authorized use only. Assess systems you own or are explicitly permitted to
 > test. Safe by default — detection, recon and controlled validation only.
 
 > 📖 See also: the [README](README.md) (full feature tour) and the complete
-> [CLI reference](docs/CLI.md) (every flag). Run `python3 vulnscan.py --capability-matrix`
+> [CLI reference](docs/CLI.md) (every flag). Run `python3 overwatch.py --capability-matrix`
 > to see exactly what the platform can and cannot do.
 
 ## One command
 
 ```bash
-python3 vulnscan.py                      # interactive: pick profile → target → mode
-python3 vulnscan.py example.com          # auto-detect kind + sensible profile
+python3 overwatch.py                      # interactive: pick profile → target → mode
+python3 overwatch.py example.com          # auto-detect kind + sensible profile
 ```
 
 ## Profiles & modes
 
 ```bash
-python3 vulnscan.py example.com --profile bugbounty --mode fast --scope scope.txt
-python3 vulnscan.py example.com --profile bugbounty --mode deep --scope scope.txt
-python3 vulnscan.py 10.0.0.0/24 --profile redteam  --mode deep --yes
-python3 vulnscan.py ./app.apk    --profile mobile
-python3 vulnscan.py ./terraform  --profile cloud
-python3 vulnscan.py ./repo       --profile code
-python3 vulnscan.py nginx:1.21   --profile cloud   # container image
+python3 overwatch.py example.com --profile bugbounty --mode fast --scope scope.txt
+python3 overwatch.py example.com --profile bugbounty --mode deep --scope scope.txt
+python3 overwatch.py 10.0.0.0/24 --profile redteam  --mode deep --yes
+python3 overwatch.py ./app.apk    --profile mobile
+python3 overwatch.py ./terraform  --profile cloud
+python3 overwatch.py ./repo       --profile code
+python3 overwatch.py nginx:1.21   --profile cloud   # container image
 ```
 
 - **FAST** — quick, passive + safe-active checks; attack-surface + known-vuln.
@@ -44,25 +44,25 @@ example.com
 https://example.com/api/
 ```
 ```bash
-python3 vulnscan.py example.com --profile bugbounty --scope scope.txt
+python3 overwatch.py example.com --profile bugbounty --scope scope.txt
 ```
 Out-of-scope discovered assets are dropped and reported.
 
 ## Authentication (redacted from all output)
 
 ```bash
-python3 vulnscan.py https://app.example.com --header "Authorization: Bearer T0KEN" \
+python3 overwatch.py https://app.example.com --header "Authorization: Bearer T0KEN" \
         --cookie "session=..." --token T0KEN
-python3 vulnscan.py aws --aws-profile prod
+python3 overwatch.py aws --aws-profile prod
 ```
 Secrets you pass are stripped from evidence, logs, and reports.
 
 ## Reports & baselines
 
 ```bash
-python3 vulnscan.py example.com --formats md,json,csv,html --out ./run1
-python3 vulnscan.py example.com --baseline                    # save baseline.json
-python3 vulnscan.py example.com --compare ./run1/report.json  # retest diff
+python3 overwatch.py example.com --formats md,json,csv,html --out ./run1
+python3 overwatch.py example.com --baseline                    # save baseline.json
+python3 overwatch.py example.com --compare ./run1/report.json  # retest diff
 ```
 
 Reports include an **attack-path graph** (Mermaid) rendered in the HTML/Markdown
@@ -88,8 +88,8 @@ auto-exploit), `missing_prerequisite` (e.g. a test account for IDOR/BOLA), or
 ## What does it know? (knowledge catalog)
 
 ```bash
-python3 vulnscan.py --list-knowledge      # attack families, definition counts, domain coverage
-python3 vulnscan.py --list-capabilities   # validation tests: risk level + prerequisites
+python3 overwatch.py --list-knowledge      # attack families, definition counts, domain coverage
+python3 overwatch.py --list-capabilities   # validation tests: risk level + prerequisites
 ```
 
 The knowledge base defines each vulnerability class once (CWE/OWASP/CAPEC +
@@ -102,9 +102,9 @@ CVE/exports) — derived live from the KB so the counts can never over-claim.
 
 ```bash
 # record a decision (get FINGERPRINT from report.json)
-python3 vulnscan.py example.com --triage-file triage.json --mark "<FP>=false_positive:mitigated by WAF"
+python3 overwatch.py example.com --triage-file triage.json --mark "<FP>=false_positive:mitigated by WAF"
 # subsequent scans apply it (muted findings drop out of the score)
-python3 vulnscan.py example.com --triage-file triage.json
+python3 overwatch.py example.com --triage-file triage.json
 ```
 Statuses: `open`, `validated`, `false_positive`, `accepted_risk`, `fixed`, `retest_required`.
 
@@ -115,10 +115,10 @@ no live AD/cloud attacks, no host access.
 
 ```bash
 # AD/cloud privilege-escalation + lateral paths from an identity graph export
-python3 vulnscan.py corp.example --profile redteam --identity-file identity.json
+python3 overwatch.py corp.example --profile redteam --identity-file identity.json
 
 # threat indicators from a host/cloud export (+ optional IOC feed)
-python3 vulnscan.py host.example --threat-input host_export.json --ioc-file iocs.json
+python3 overwatch.py host.example --threat-input host_export.json --ioc-file iocs.json
 ```
 
 - `--identity-file` (JSON `nodes`/`edges`): traces principal → crown-jewel
@@ -131,7 +131,7 @@ python3 vulnscan.py host.example --threat-input host_export.json --ioc-file iocs
 ## PDF & report formats
 
 ```bash
-python3 vulnscan.py example.com --formats md,json,csv,html,pdf,sarif
+python3 overwatch.py example.com --formats md,json,csv,html,pdf,sarif
 ```
 - `pdf` uses `wkhtmltopdf`/`weasyprint` if installed (rich), else a built-in
   dependency-free text PDF so `report.pdf` always exists.
@@ -143,9 +143,9 @@ python3 vulnscan.py example.com --formats md,json,csv,html,pdf,sarif
 
 Fail a pipeline on risk thresholds (non-zero exit):
 ```bash
-python3 vulnscan.py example.com --profile web --yes --formats sarif --fail-on high
-python3 vulnscan.py example.com --yes --fail-on-kev                    # any actively-exploited CVE
-python3 vulnscan.py example.com --yes --compare baseline.json --fail-on-new
+python3 overwatch.py example.com --profile web --yes --formats sarif --fail-on high
+python3 overwatch.py example.com --yes --fail-on-kev                    # any actively-exploited CVE
+python3 overwatch.py example.com --yes --compare baseline.json --fail-on-new
 ```
 Only **active** findings count (false-positive/fixed/accepted-risk are ignored).
 
@@ -155,10 +155,10 @@ Feed raw output from authorized tools directly to `--identity-file` /
 `--threat-input`; connectors auto-detect and convert it:
 ```bash
 # BloodHound export -> identity attack paths
-python3 vulnscan.py corp.example --profile redteam --identity-file bloodhound.json
+python3 overwatch.py corp.example --profile redteam --identity-file bloodhound.json
 # Prowler JSON -> cloud findings   |   ScoutSuite JSON -> threat telemetry
-python3 vulnscan.py aws --threat-input prowler.json
-python3 vulnscan.py aws --threat-input scoutsuite.json
+python3 overwatch.py aws --threat-input prowler.json
+python3 overwatch.py aws --threat-input scoutsuite.json
 ```
 Connectors are offline parsers — they never call a live directory/cloud API.
 
@@ -188,8 +188,8 @@ presents a hypothetical chain as a confirmed compromise.
 ## Purple team — detection verification
 
 ```bash
-python3 vulnscan.py target --profile purple --mode deep --yes
-python3 vulnscan.py target --profile purple --telemetry siem_export.json --yes
+python3 overwatch.py target --profile purple --mode deep --yes
+python3 overwatch.py target --profile purple --telemetry siem_export.json --yes
 ```
 Maps executed test activity → expected telemetry / MITRE, correlates with your
 SIEM/EDR/IDS export, and reports detection rate + gaps + recommended rules. With
@@ -197,10 +197,10 @@ no telemetry supplied, everything is reported as an unverified gap (honest).
 
 ## Resume / checkpointing
 
-Progress is checkpointed to `~/.cache/vulnscan/scans/<scan-id>.json` (the CLI
+Progress is checkpointed to `~/.cache/overwatch/scans/<scan-id>.json` (the CLI
 prints the scan-id). Resume without rescanning:
 ```bash
-python3 vulnscan.py --resume SCAN-YYYYMMDD-HHMMSS-xxxx
+python3 overwatch.py --resume SCAN-YYYYMMDD-HHMMSS-xxxx
 ```
 
 ## Availability & resilience (safe, passive)
@@ -215,8 +215,8 @@ Collect host data on a system you're authorized to assess, then analyze it
 offline (the tool never logs into or executes on a remote host):
 ```bash
 # generate the Linux export on an authorized host (read-only), then:
-python3 vulnscan.py host.json --type linux      # SUID/sudo/caps/cron/ssh/pkg CVEs
-python3 vulnscan.py winhost.json --type windows # services/SMB/RDP/WinRM/creds/patches
+python3 overwatch.py host.json --type linux      # SUID/sudo/caps/cron/ssh/pkg CVEs
+python3 overwatch.py winhost.json --type windows # services/SMB/RDP/WinRM/creds/patches
 ```
 `*.json` exports are auto-detected as linux/windows. For AD attack paths use
 `--identity-file` (BloodHound export).
@@ -226,7 +226,7 @@ python3 vulnscan.py winhost.json --type windows # services/SMB/RDP/WinRM/creds/p
 Analyzes the RESULTS of a sanctioned awareness campaign — it never sends
 campaigns or handles real credentials, and only runs when the policy enables it:
 ```bash
-python3 vulnscan.py org.example --policy se-policy.yaml --se-input campaign.json
+python3 overwatch.py org.example --policy se-policy.yaml --se-input campaign.json
 ```
 Reports human-risk score, click / (dummy) submission / reporting / MFA-resilience
 rates, and policy gaps.
@@ -234,7 +234,7 @@ rates, and policy gaps.
 ## Professional report bundle
 
 ```bash
-python3 vulnscan.py target --profile enterprise --mode deep --yes --bundle
+python3 overwatch.py target --profile enterprise --mode deep --yes --bundle
 ```
 Writes `reports/`: `executive-report.md`(+pdf), `technical-report.md/html`(+pdf),
 `findings.json`, `attack-paths.json`, `coverage.json`, `report.sarif`,
@@ -244,12 +244,12 @@ Writes `reports/`: `executive-report.md`(+pdf), `technical-report.md/html`(+pdf)
 ## Retest & availability load-test
 
 ```bash
-python3 vulnscan.py target --baseline        # save a baseline for this target
-python3 vulnscan.py target --retest          # auto-locate baseline + diff, then refresh it
+python3 overwatch.py target --baseline        # save a baseline for this target
+python3 overwatch.py target --retest          # auto-locate baseline + diff, then refresh it
 
 # bounded, LAB-ONLY availability probe (opt-in; requires a lab policy with dos.enabled).
 # hard-capped (<=50 reqs, <=5 concurrency, <=10s, rate-limited, abortable) — never a flood.
-python3 vulnscan.py lab-target --profile lab --policy lab-dos.yaml --load-test
+python3 overwatch.py lab-target --profile lab --policy lab-dos.yaml --load-test
 ```
 
 ## Bug bounty — program-aware (one command, rules auto-respected)
@@ -261,7 +261,7 @@ program declares out-of-scope (kept but excluded from the score so results focus
 on what pays).
 
 ```bash
-python3 vulnscan.py https://matlab.mathworks.com/ \
+python3 overwatch.py https://matlab.mathworks.com/ \
     --profile bugbounty --program programs/matlab-bugcrowd.yaml --yes
 ```
 
@@ -300,19 +300,19 @@ attack-path objectives, new target kinds, or tools.
 ## Inspect / control
 
 ```bash
-python3 vulnscan.py --version
-python3 vulnscan.py --list-profiles
-python3 vulnscan.py --list-tools
-python3 vulnscan.py --list-capabilities
-python3 vulnscan.py example.com --dry-run       # show the plan, run nothing
-python3 vulnscan.py --update                    # refresh CVE feeds (KEV/NVD)
-python3 vulnscan.py example.com --workers 10 --timeout 30 --skip nuclei,sqlmap
+python3 overwatch.py --version
+python3 overwatch.py --list-profiles
+python3 overwatch.py --list-tools
+python3 overwatch.py --list-capabilities
+python3 overwatch.py example.com --dry-run       # show the plan, run nothing
+python3 overwatch.py --update                    # refresh CVE feeds (KEV/NVD)
+python3 overwatch.py example.com --workers 10 --timeout 30 --skip nuclei,sqlmap
 ```
 
 ## Local test lab (no real targets)
 
 ```bash
 python3 lab/app.py                                   # insecure demo on :8000
-python3 vulnscan.py http://127.0.0.1:8000 --profile web --yes
+python3 overwatch.py http://127.0.0.1:8000 --profile web --yes
 # or: cd lab && docker compose up -d   (Juice Shop :3000, DVWA :8080)
 ```

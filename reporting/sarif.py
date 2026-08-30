@@ -3,7 +3,7 @@
 reporting/sarif.py — SARIF 2.1.0 export + CI gating.
 
 SARIF (Static Analysis Results Interchange Format) is what GitHub Code Scanning
-and most CI dashboards ingest. Exporting to SARIF lets vulnscan results appear
+and most CI dashboards ingest. Exporting to SARIF lets overwatch results appear
 as annotations on PRs / in the Security tab.
 
 Also provides `gate()` — evaluates a fail threshold (severity / KEV / new
@@ -70,14 +70,14 @@ def to_sarif(assessment) -> dict:
                 "cve": f.cve, "kev": f.kev, "mitre": f.mitre,
                 "fingerprint": f.fingerprint(),
             },
-            "partialFingerprints": {"vulnscan/v1": f.fingerprint()},
+            "partialFingerprints": {"overwatch/v1": f.fingerprint()},
         })
     return {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "version": "2.1.0",
         "runs": [{
             "tool": {"driver": {
-                "name": "vulnscan",
+                "name": "overwatch",
                 "informationUri": "https://github.com/RishiPlaysCodes/script-test-case",
                 "version": "4.0.0",
                 "rules": _rules(findings),

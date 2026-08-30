@@ -1,5 +1,5 @@
 """
-connectors — turn real tool exports into vulnscan's input formats.
+connectors — turn real tool exports into overwatch's input formats.
 
 Bring-your-own-data: run authorized tools (BloodHound, ScoutSuite, Prowler) in
 your environment, then feed their JSON output here. Connectors are pure,
@@ -17,7 +17,7 @@ from . import bloodhound, scoutsuite, prowler  # noqa: F401
 
 
 def detect_and_load(path: str):
-    """Sniff a JSON export and convert it to the right vulnscan input format."""
+    """Sniff a JSON export and convert it to the right overwatch input format."""
     import json
     try:
         with open(path, "r", errors="ignore") as fh:

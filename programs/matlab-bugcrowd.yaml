@@ -1,7 +1,7 @@
 # Bug-bounty program config — MATLAB Online (Bugcrowd).
 # Point the engine at the target with --program and it auto-respects all of this.
 #
-#   python3 vulnscan.py https://matlab.mathworks.com/ \
+#   python3 overwatch.py https://matlab.mathworks.com/ \
 #       --profile bugbounty --program programs/matlab-bugcrowd.yaml --yes
 #
 # NOTE: only test with YOUR authorized @bugcrowdninja.com account content, per

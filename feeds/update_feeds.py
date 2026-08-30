@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feeds/update_feeds.py — refresh vulnscan's vulnerability data feeds.
+feeds/update_feeds.py — refresh overwatch's vulnerability data feeds.
 
 This is the job a scheduler (GitHub Actions / cron / systemd timer) runs so the
 scanner stays current WITHOUT any manual run — it only downloads public
@@ -57,7 +57,7 @@ def log(m: str) -> None:
 
 
 def _get(url: str, timeout: int = 30):
-    headers = {"User-Agent": "vulnscan-feeds/1.0"}
+    headers = {"User-Agent": "overwatch-feeds/1.0"}
     if _HAS_REQUESTS:
         r = requests.get(url, headers=headers, timeout=timeout)
         r.raise_for_status()
@@ -146,7 +146,7 @@ def update_tool_dbs(summary: dict) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Refresh vulnscan vulnerability feeds.")
+    ap = argparse.ArgumentParser(description="Refresh overwatch vulnerability feeds.")
     ap.add_argument("--kev", action="store_true", help="update CISA KEV only")
     ap.add_argument("--nvd-days", type=int, default=7, help="NVD rolling window in days (default 7)")
     ap.add_argument("--no-nvd", action="store_true", help="skip NVD refresh")

@@ -135,7 +135,7 @@ def _try_html_to_pdf(html_path: str, pdf_path: str) -> bool:
 def _summary_lines(assessment) -> list:
     from .report import summarize
     s = summarize(assessment)
-    L = ["VULNSCAN — SECURITY ASSESSMENT REPORT", "=" * 60, "",
+    L = ["OVERWATCH-SEC — SECURITY ASSESSMENT REPORT", "=" * 60, "",
          f"Target : {assessment.target}",
          f"Type   : {assessment.kind}   Profile: {assessment.profile}   Mode: {assessment.mode}",
          f"Policy : {assessment.policy.summary()}",

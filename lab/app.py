@@ -2,11 +2,11 @@
 """
 lab/app.py — an intentionally-insecure demo web app for SAFE local testing.
 
-Run it, point vulnscan at http://127.0.0.1:8000, and see the engine light up —
+Run it, point overwatch at http://127.0.0.1:8000, and see the engine light up —
 without touching any real system. Stdlib only (no Flask needed).
 
     python3 lab/app.py
-    python3 vulnscan.py http://127.0.0.1:8000 --profile web --yes
+    python3 overwatch.py http://127.0.0.1:8000 --profile web --yes
 
 DO NOT expose this to the internet. It is deliberately vulnerable.
 """

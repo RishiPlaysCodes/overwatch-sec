@@ -3,7 +3,7 @@
 scanner_linux.py — Linux host security assessment (from an AUTHORIZED export).
 
 You collect host data on a system you're authorized to assess (with the bundled
-collector or your own) and hand the resulting JSON to vulnscan. This scanner is
+collector or your own) and hand the resulting JSON to overwatch. This scanner is
 a pure, offline analyzer — it never logs into or executes anything on a remote
 host. It surfaces local-privilege-escalation and hardening issues and clearly
 distinguishes "possible" from "validated".
@@ -137,8 +137,8 @@ def scan(target: str, outdir: str, skip: set) -> dict:
 def collector_script() -> str:
     """A read-only collector the operator can run on an AUTHORIZED host."""
     return r"""#!/usr/bin/env bash
-# vulnscan Linux collector — READ ONLY. Run on a host you are authorized to assess.
-# Produces host.json for: vulnscan host.json --type linux
+# overwatch Linux collector — READ ONLY. Run on a host you are authorized to assess.
+# Produces host.json for: overwatch host.json --type linux
 set -u
 j() { python3 - "$@" <<'PY'
 import json,sys; print(json.dumps(sys.argv[1]))

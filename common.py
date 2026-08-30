@@ -160,7 +160,7 @@ def run_live(cmd: list[str], timeout: int = 900) -> int:
 def http_get(url: str, timeout: int = 15):
     """Return (status, headers_lowercased, body_text, cookiejar_or_None).
     Adds program-required headers and respects the configured rate limit."""
-    headers = {"User-Agent": "vulnscan/2.0 (+authorized-testing)"}
+    headers = {"User-Agent": "overwatch/2.0 (+authorized-testing)"}
     headers.update(REQUEST_CONTEXT.get("headers") or {})
     _throttle()
     if HAS_REQUESTS:

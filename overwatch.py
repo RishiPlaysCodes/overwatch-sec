@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-vulnscan.py — Universal Security Assessment & Authorized Adversary-Emulation platform.
+overwatch.py — Universal Security Assessment & Authorized Adversary-Emulation platform.
 
 One command, target auto-detection, profile + mode driven, scope- and
 policy-enforced, with measurable coverage and industry-grade reports.
 
-    vulnscan example.com
-    vulnscan example.com --profile bugbounty --mode deep --scope scope.txt
-    vulnscan 10.0.0.0/24 --profile redteam --mode fast --yes
-    vulnscan ./app.apk   --profile mobile
-    vulnscan --list-profiles | --list-tools | --dry-run | --version
+    overwatch example.com
+    overwatch example.com --profile bugbounty --mode deep --scope scope.txt
+    overwatch 10.0.0.0/24 --profile redteam --mode fast --yes
+    overwatch ./app.apk   --profile mobile
+    overwatch --list-profiles | --list-tools | --dry-run | --version
 
 SAFE BY DEFAULT — detection, recon and *controlled* validation only. No
 auto-exploitation, no post-exploitation, no DoS/flooding. Intrusive/destructive
@@ -41,7 +41,7 @@ except Exception:                       # minimal color fallback
 
 BANNER = r"""
 ╔══════════════════════════════════════════════╗
-║            VULNSCAN SECURITY ENGINE            ║
+║          OVERWATCH-SEC SECURITY ENGINE         ║
 ╚══════════════════════════════════════════════╝"""
 
 PROFILE_MENU = [
@@ -134,7 +134,7 @@ def run_installer(groups: list[str]) -> int:
     import subprocess
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.sh")
     if not os.path.isfile(script):
-        print(f"{C.RED}install.sh not found next to vulnscan.py{C.RESET}")
+        print(f"{C.RED}install.sh not found next to overwatch.py{C.RESET}")
         return 1
     groups = groups or ["all"]
     print(f"{C.CYN}Running installer: install.sh {' '.join(groups)}{C.RESET}\n", flush=True)
@@ -251,7 +251,7 @@ def collect_secrets(args) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        prog="vulnscan",
+        prog="overwatch",
         description="Universal Security Assessment & Authorized Adversary-Emulation platform. "
                     "Safe by default; authorized use only.")
     ap.add_argument("target", nargs="?", default=None, help="URL/domain/IP/CIDR/app/dir/image (omit for interactive)")
@@ -342,7 +342,7 @@ def main() -> int:
                          "target's kind before scanning")
     ap.add_argument("--no-install", dest="no_install", action="store_true",
                     help="do NOT auto-install missing tools; skip unavailable tools instead "
-                         "(old behaviour). By default vulnscan installs missing tools first.")
+                         "(old behaviour). By default overwatch installs missing tools first.")
     ap.add_argument("--check-updates", action="store_true")
     ap.add_argument("--update", action="store_true", help="refresh CVE feeds")
     ap.add_argument("--version", action="store_true")
@@ -350,7 +350,7 @@ def main() -> int:
 
     # meta commands
     if args.version:
-        print(f"vulnscan {__version__}")
+        print(f"overwatch {__version__}")
         return 0
     if args.list_profiles:
         return cmd_list_profiles()
@@ -474,12 +474,12 @@ def main() -> int:
         shown = ", ".join(miss[:8]) + ("…" if len(miss) > 8 else "")
         if args.no_install:
             print(f"{C.YEL}--no-install: {len(miss)} tool(s) will be SKIPPED ({shown}). "
-                  f"Install later: {C.BOLD}python3 vulnscan.py --install {g}{C.RESET}")
+                  f"Install later: {C.BOLD}python3 overwatch.py --install {g}{C.RESET}")
         else:
             print(f"{C.YEL}{len(miss)} tool(s) still unavailable after install and will be skipped "
                   f"({shown}).{C.RESET}")
             print(f"{C.YEL}They usually need sudo/network or a manual step — the installer printed "
-                  f"the exact command for each. Re-run: {C.BOLD}python3 vulnscan.py --install {g}{C.RESET}")
+                  f"the exact command for each. Re-run: {C.BOLD}python3 overwatch.py --install {g}{C.RESET}")
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", target)[:40]

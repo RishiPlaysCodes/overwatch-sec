@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh vulnscan CVE feeds (CISA KEV + NVD) and tool DBs
+Description=Refresh overwatch CVE feeds (CISA KEV + NVD) and tool DBs
 Documentation=https://github.com/RishiPlaysCodes/script-test-case
 Wants=network-online.target
 After=network-online.target
@@ -7,8 +7,8 @@ After=network-online.target
 [Service]
 Type=oneshot
 # EDIT this path to where you cloned the repo:
-WorkingDirectory=/opt/vulnscan
-ExecStart=/usr/bin/python3 /opt/vulnscan/feeds/update_feeds.py --nvd-days 7
+WorkingDirectory=/opt/overwatch
+ExecStart=/usr/bin/python3 /opt/overwatch/feeds/update_feeds.py --nvd-days 7
 # Keep it low priority so it never disrupts real work.
 Nice=10
 IOSchedulingClass=idle

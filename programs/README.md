@@ -4,7 +4,7 @@ Drop a YAML here per program, then run one command — the engine reads it and
 **auto-respects the program's rules** so you don't manage flags by hand:
 
 ```bash
-python3 vulnscan.py https://TARGET --profile bugbounty --program programs/NAME.yaml --yes
+python3 overwatch.py https://TARGET --profile bugbounty --program programs/NAME.yaml --yes
 ```
 
 What a program config controls:

@@ -127,5 +127,5 @@ Status legend:
 
 Nothing above is a hidden TODO on a *claimed* capability: each is either
 implemented, safely gated, external-data/credential/hardware dependent, or
-explicitly manual. Run `python3 vulnscan.py --gap-analysis` for the live,
+explicitly manual. Run `python3 overwatch.py --gap-analysis` for the live,
 code-derived matrix.

@@ -23,7 +23,7 @@ try:
 except Exception:  # minimal fallback
     def http_get(url, timeout=15):
         import urllib.request
-        req = urllib.request.Request(url, headers={"User-Agent": "vulnscan-validate/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "overwatch-validate/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read().decode("utf-8", "replace"), None
 
@@ -97,8 +97,8 @@ def _validate_cors(f) -> tuple:
     """Confirm the API reflects an arbitrary Origin with credentials (safe GET)."""
     import urllib.request
     url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
-    probe = "https://vulnscan-probe.example"
-    req = urllib.request.Request(url, headers={"User-Agent": "vulnscan-validate/1.0", "Origin": probe})
+    probe = "https://overwatch-probe.example"
+    req = urllib.request.Request(url, headers={"User-Agent": "overwatch-validate/1.0", "Origin": probe})
     try:
         with urllib.request.urlopen(req, timeout=12) as r:
             h = {k.lower(): v for k, v in r.headers.items()}
@@ -150,7 +150,7 @@ def _validate_open_redirect(f) -> tuple:
     if not params:
         params = ["next", "url", "redirect", "return"]
     base = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
-    probe = "https://vulnscan-probe.example/ext-check"
+    probe = "https://overwatch-probe.example/ext-check"
 
     class _NoFollow(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -162,13 +162,13 @@ def _validate_open_redirect(f) -> tuple:
         url = f"{base}{sep}{p}={probe}"
         loc = ""
         try:
-            r = opener.open(urllib.request.Request(url, headers={"User-Agent": "vulnscan-validate/1.0"}), timeout=12)
+            r = opener.open(urllib.request.Request(url, headers={"User-Agent": "overwatch-validate/1.0"}), timeout=12)
             loc = r.headers.get("Location", "") or ""
         except urllib.error.HTTPError as e:
             loc = (e.headers.get("Location", "") if e.headers else "") or ""
         except Exception:
             continue
-        if "vulnscan-probe.example" in loc:
+        if "overwatch-probe.example" in loc:
             return ("validated", f"redirects off-site to attacker-controlled URL via '{p}' (Location not followed)")
     return ("not_validated", "no off-site redirect reflected in Location on re-check")
 

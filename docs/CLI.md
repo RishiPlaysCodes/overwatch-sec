@@ -1,7 +1,7 @@
-# vulnscan — Complete CLI Reference
+# overwatch — Complete CLI Reference
 
 ```
-python3 vulnscan.py [target] [options]
+python3 overwatch.py [target] [options]
 ```
 
 `target` — URL / domain / IP / CIDR / app file / directory / image ref. Omit it
@@ -122,41 +122,41 @@ to launch the **interactive wizard** (asks device type → target → mode).
 
 ```bash
 # interactive
-python3 vulnscan.py
+python3 overwatch.py
 
 # website / API, deep, authenticated
-python3 vulnscan.py https://app.example.com --profile web --mode deep \
+python3 overwatch.py https://app.example.com --profile web --mode deep \
     --cookie "session=…" --header "Authorization: Bearer …"
 
 # bug bounty in scope
-python3 vulnscan.py example.com --profile bugbounty --mode deep --scope scope.txt
-python3 vulnscan.py example.com --program programs/your-program.yaml
+python3 overwatch.py example.com --profile bugbounty --mode deep --scope scope.txt
+python3 overwatch.py example.com --program programs/your-program.yaml
 
 # network / repo / container / cloud / mobile
-python3 vulnscan.py 10.0.0.0/24 --profile network --yes
-python3 vulnscan.py ./my-project                       # SCA + secrets + SAST + CI/CD + IaC
-python3 vulnscan.py nginx:1.21
-python3 vulnscan.py ./terraform
-python3 vulnscan.py ./app.apk
+python3 overwatch.py 10.0.0.0/24 --profile network --yes
+python3 overwatch.py ./my-project                       # SCA + secrets + SAST + CI/CD + IaC
+python3 overwatch.py nginx:1.21
+python3 overwatch.py ./terraform
+python3 overwatch.py ./app.apk
 
 # authorized exports
-python3 vulnscan.py host.json --type linux
-python3 vulnscan.py --identity-file ad.json example.com
-python3 vulnscan.py --telemetry siem.json --profile purple example.com
+python3 overwatch.py host.json --type linux
+python3 overwatch.py --identity-file ad.json example.com
+python3 overwatch.py --telemetry siem.json --profile purple example.com
 
 # CI gating + SARIF
-python3 vulnscan.py https://ci-target --yes --formats sarif --fail-on high --fail-on-kev
+python3 overwatch.py https://ci-target --yes --formats sarif --fail-on high --fail-on-kev
 
 # baseline then retest
-python3 vulnscan.py example.com --baseline
-python3 vulnscan.py example.com --retest
+python3 overwatch.py example.com --baseline
+python3 overwatch.py example.com --retest
 
 # resume an interrupted deep scan
-python3 vulnscan.py --resume SCAN-20260101-120000-abcdef01
+python3 overwatch.py --resume SCAN-20260101-120000-abcdef01
 
 # introspection
-python3 vulnscan.py --capability-matrix
-python3 vulnscan.py --dry-run example.com --profile redteam --mode deep
+python3 overwatch.py --capability-matrix
+python3 overwatch.py --dry-run example.com --profile redteam --mode deep
 ```
 
 ---

@@ -16,7 +16,7 @@ try:
 except Exception:  # pragma: no cover
     def http_get(url, timeout=15):
         import urllib.request
-        req = urllib.request.Request(url, headers={"User-Agent": "vulnscan/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "overwatch/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read().decode("utf-8", "replace"), None
 

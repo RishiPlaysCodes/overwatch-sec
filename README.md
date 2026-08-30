@@ -1,4 +1,4 @@
-# 🛡️ vulnscan — Universal Security Assessment Platform
+# 🛡️ overwatch — Universal Security Assessment Platform
 
 **A modular, profile-driven, authorized security-assessment & adversary-emulation
 platform.** You give it a target and the authorized context; it fingerprints the
@@ -7,7 +7,7 @@ correlates attack paths, maps MITRE ATT&CK, measures its own coverage, and write
 professional reports — all **scope- and policy-enforced, safe by default**.
 
 ```bash
-python3 vulnscan.py example.com --profile bugbounty --mode deep --scope scope.txt
+python3 overwatch.py example.com --profile bugbounty --mode deep --scope scope.txt
 ```
 
 > ⚠️ **Authorized use only.** Assess only systems/apps/accounts you own or are
@@ -54,15 +54,15 @@ external tool that isn't installed (reporting exactly what was skipped and why).
 ```bash
 git clone https://github.com/RishiPlaysCodes/script-test-case.git
 cd script-test-case
-python3 vulnscan.py --version          # works right away (stdlib only)
+python3 overwatch.py --version          # works right away (stdlib only)
 ```
 
 Install all the external scanners it can orchestrate (Kali/Debian/Ubuntu/WSL):
 
 ```bash
-python3 vulnscan.py --install          # one shot: apt → go → curl/pip/pipx, then exits
+python3 overwatch.py --install          # one shot: apt → go → curl/pip/pipx, then exits
 # or only some groups:
-python3 vulnscan.py --install recon web network code
+python3 overwatch.py --install recon web network code
 ```
 
 The installer is reliable and idempotent: apt first, then `go install` (with
@@ -79,8 +79,8 @@ Opt out with `--no-install` (then unavailable tools are skipped, and the report
 says exactly which ones and how to install them):
 
 ```bash
-python3 vulnscan.py https://your-site.com               # installs missing tools first, then scans
-python3 vulnscan.py https://your-site.com --no-install  # skip missing tools instead
+python3 overwatch.py https://your-site.com               # installs missing tools first, then scans
+python3 overwatch.py https://your-site.com --no-install  # skip missing tools instead
 ```
 
 Then pull fresh vulnerability data (optional but recommended):
@@ -95,42 +95,42 @@ python3 feeds/update_feeds.py          # CISA KEV + NVD into data/ (offline-safe
 
 ```bash
 # interactive — asks what to scan (device → target → mode)
-python3 vulnscan.py
+python3 overwatch.py
 
 # website / API
-python3 vulnscan.py https://your-site.com
-python3 vulnscan.py https://api.your-site.com --profile web --mode deep
+python3 overwatch.py https://your-site.com
+python3 overwatch.py https://api.your-site.com --profile web --mode deep
 
 # bug-bounty recon over a whole attack surface, confined to scope
 printf 'example.com\napi.example.com\n' > scope.txt
-python3 vulnscan.py example.com --profile bugbounty --mode deep --scope scope.txt
+python3 overwatch.py example.com --profile bugbounty --mode deep --scope scope.txt
 
 # network / host / subnet
-python3 vulnscan.py 192.168.1.10
-python3 vulnscan.py 10.0.0.0/24 --profile network --yes
+python3 overwatch.py 192.168.1.10
+python3 overwatch.py 10.0.0.0/24 --profile network --yes
 
 # source repo (SCA + secrets + SAST + CI/CD + IaC)
-python3 vulnscan.py ./my-project
+python3 overwatch.py ./my-project
 
 # container image / Kubernetes manifests / Terraform
-python3 vulnscan.py nginx:1.21
-python3 vulnscan.py ./k8s-manifests
-python3 vulnscan.py ./terraform
+python3 overwatch.py nginx:1.21
+python3 overwatch.py ./k8s-manifests
+python3 overwatch.py ./terraform
 
 # mobile app
-python3 vulnscan.py ./app.apk
+python3 overwatch.py ./app.apk
 ```
 
 Explore the platform without scanning anything:
 
 ```bash
-python3 vulnscan.py --dry-run https://your-site.com --profile bugbounty --mode deep
-python3 vulnscan.py --list-profiles          # available profiles
-python3 vulnscan.py --list-tools             # external tools + install status
-python3 vulnscan.py --list-capabilities      # validation capabilities (risk + prerequisites)
-python3 vulnscan.py --list-knowledge         # knowledge catalog + per-domain coverage
-python3 vulnscan.py --capability-matrix      # what it CAN and CANNOT do, with reasons
-python3 vulnscan.py --gap-analysis           # code-derived knowledge→detection→validation gaps
+python3 overwatch.py --dry-run https://your-site.com --profile bugbounty --mode deep
+python3 overwatch.py --list-profiles          # available profiles
+python3 overwatch.py --list-tools             # external tools + install status
+python3 overwatch.py --list-capabilities      # validation capabilities (risk + prerequisites)
+python3 overwatch.py --list-knowledge         # knowledge catalog + per-domain coverage
+python3 overwatch.py --capability-matrix      # what it CAN and CANNOT do, with reasons
+python3 overwatch.py --gap-analysis           # code-derived knowledge→detection→validation gaps
 ```
 
 ---
@@ -223,7 +223,7 @@ Override detection with `--type {recon,web,api,network,mobile,cloud,container,ku
 
 ## 7. What it covers (by domain)
 
-Run `python3 vulnscan.py --capability-matrix` for the live, per-capability status.
+Run `python3 overwatch.py --capability-matrix` for the live, per-capability status.
 Summary (133 knowledge definitions across 22 families):
 
 - **Web** — headers, cookies, reflected/stored/DOM XSS, CSRF, SSRF, SSTI, XXE,
@@ -322,10 +322,10 @@ Every validated finding records **structured, timestamped, redacted evidence**
 The platform is honest about what it did and didn't do.
 
 ```bash
-python3 vulnscan.py --capability-matrix          # per-capability status + reason
-python3 vulnscan.py --capability-matrix --json   # machine-readable
-python3 vulnscan.py --gap-analysis               # KB→detection→validation→checker gaps
-python3 vulnscan.py --list-knowledge             # families, counts, domain coverage
+python3 overwatch.py --capability-matrix          # per-capability status + reason
+python3 overwatch.py --capability-matrix --json   # machine-readable
+python3 overwatch.py --gap-analysis               # KB→detection→validation→checker gaps
+python3 overwatch.py --list-knowledge             # families, counts, domain coverage
 ```
 
 Every capability is classified with an exact status and a reason — **zero
@@ -349,8 +349,8 @@ validated / refuted / manual + the exact reason anything was *not* run) and a
 Everything lands in `report-<profile>-<target>-<timestamp>/` (or `--out DIR`).
 
 ```bash
-python3 vulnscan.py https://your-site.com --formats md,json,csv,html,sarif,pdf
-python3 vulnscan.py https://your-site.com --bundle    # executive + technical bundle
+python3 overwatch.py https://your-site.com --formats md,json,csv,html,sarif,pdf
+python3 overwatch.py https://your-site.com --bundle    # executive + technical bundle
 ```
 
 - **`report.md`** — executive summary (posture, score, KEV, attack paths),
@@ -373,17 +373,17 @@ python3 vulnscan.py https://your-site.com --bundle    # executive + technical bu
 printf 'example.com\n*.example.com\n!admin.example.com\n' > scope.txt
 
 # 2) fast pass — attack surface + known-vuln, strictly in scope
-python3 vulnscan.py example.com --profile bugbounty --mode fast --scope scope.txt
+python3 overwatch.py example.com --profile bugbounty --mode fast --scope scope.txt
 
 # 3) deep pass — content discovery, crawl, safe validation, attack paths
-python3 vulnscan.py example.com --profile bugbounty --mode deep --scope scope.txt
+python3 overwatch.py example.com --profile bugbounty --mode deep --scope scope.txt
 ```
 
 Or drive a whole program with one config (scope + required headers + rate limit +
 out-of-scope finding rules):
 
 ```bash
-python3 vulnscan.py example.com --program programs/your-program.yaml
+python3 overwatch.py example.com --program programs/your-program.yaml
 ```
 
 The recon pipeline chains subdomain enum → HTTP probe → port scan → URL collection
@@ -398,7 +398,7 @@ tool auto-detected and skipped if missing, everything confined to scope.
 Supply credentials to test behind auth. Values are **redacted** from all output.
 
 ```bash
-python3 vulnscan.py https://app.example.com --profile web --mode deep \
+python3 overwatch.py https://app.example.com --profile web --mode deep \
     --cookie "session=…" \
     --header "Authorization: Bearer …" \
     --token "…" --api-key "…"
@@ -417,11 +417,11 @@ These analyze data **you export** from systems you're authorized to inspect —
 read-only, never touching a live host/cloud:
 
 ```bash
-python3 vulnscan.py host.json --type linux           # Linux host audit (SUID/sudo/caps/…)
-python3 vulnscan.py host.json --type windows          # Windows host audit
-python3 vulnscan.py --identity-file ad.json <target>  # AD/cloud privilege-escalation paths
-python3 vulnscan.py --threat-input export.json --ioc-file iocs.json <target>   # threat indicators
-python3 vulnscan.py --telemetry siem.json --profile purple <target>            # detection verification
+python3 overwatch.py host.json --type linux           # Linux host audit (SUID/sudo/caps/…)
+python3 overwatch.py host.json --type windows          # Windows host audit
+python3 overwatch.py --identity-file ad.json <target>  # AD/cloud privilege-escalation paths
+python3 overwatch.py --threat-input export.json --ioc-file iocs.json <target>   # threat indicators
+python3 overwatch.py --telemetry siem.json --profile purple <target>            # detection verification
 ```
 
 Connectors auto-convert common formats (BloodHound → identity graph, Prowler →
@@ -432,14 +432,14 @@ findings, ScoutSuite → threat telemetry).
 ## 15. Baseline, retest, resume & triage
 
 ```bash
-python3 vulnscan.py <t> --baseline                 # save this run as the baseline
-python3 vulnscan.py <t> --retest                   # diff vs saved baseline (new/fixed/persistent)
-python3 vulnscan.py <t> --compare old/report.json  # diff vs a specific report
-python3 vulnscan.py --resume SCAN-<id>             # rebuild from checkpoint, no rescanning
+python3 overwatch.py <t> --baseline                 # save this run as the baseline
+python3 overwatch.py <t> --retest                   # diff vs saved baseline (new/fixed/persistent)
+python3 overwatch.py <t> --compare old/report.json  # diff vs a specific report
+python3 overwatch.py --resume SCAN-<id>             # rebuild from checkpoint, no rescanning
 
 # persistent triage (mute false-positives/accepted-risk across scans)
-python3 vulnscan.py <t> --triage-file triage.json
-python3 vulnscan.py <t> --triage-file triage.json --mark "<FINGERPRINT>=false_positive:mitigated by WAF"
+python3 overwatch.py <t> --triage-file triage.json
+python3 overwatch.py <t> --triage-file triage.json --mark "<FINGERPRINT>=false_positive:mitigated by WAF"
 ```
 
 Deep scans checkpoint after each stage, so a crash/interruption can `--resume`
@@ -452,9 +452,9 @@ from where it stopped.
 Fail a pipeline on risk thresholds (exit non-zero):
 
 ```bash
-python3 vulnscan.py <t> --yes --formats sarif --fail-on high      # any ≥ high
-python3 vulnscan.py <t> --yes --fail-on-kev                        # any actively-exploited (KEV)
-python3 vulnscan.py <t> --yes --compare baseline.json --fail-on-new   # any new vs baseline
+python3 overwatch.py <t> --yes --formats sarif --fail-on high      # any ≥ high
+python3 overwatch.py <t> --yes --fail-on-kev                        # any actively-exploited (KEV)
+python3 overwatch.py <t> --yes --compare baseline.json --fail-on-new   # any new vs baseline
 ```
 
 Emit SARIF (`--formats sarif`) for GitHub Code Scanning.
@@ -468,7 +468,7 @@ The *code* rarely changes; the **vulnerability data** does. `cve_intel.py` reads
 
 ```bash
 python3 feeds/update_feeds.py            # refresh KEV + NVD (+ tool DBs if installed)
-python3 vulnscan.py --update             # same, via the CLI
+python3 overwatch.py --update             # same, via the CLI
 ```
 
 Keep it fresh automatically (works even when your machine is off):
@@ -514,7 +514,7 @@ Full details in [`docs/CLI.md`](docs/CLI.md). Most-used flags:
 ## 19. Project layout
 
 ```
-vulnscan.py            # CLI entry: detection, auth gate, dispatch, reporting
+overwatch.py            # CLI entry: detection, auth gate, dispatch, reporting
 common.py              # shared helpers (safe subprocess, HTTP, finding builder)
 knowledgebase.py       # every finding: CWE/OWASP/CAPEC + description/attack/patch
 cve_intel.py           # NVD CVSS + CISA KEV enrichment (offline-safe)
@@ -586,7 +586,7 @@ report → secret-redaction. Try it live:
 
 ```bash
 python3 lab/app.py                                   # serves http://127.0.0.1:8000
-python3 vulnscan.py http://127.0.0.1:8000 --profile redteam --mode deep --yes
+python3 overwatch.py http://127.0.0.1:8000 --profile redteam --mode deep --yes
 ```
 
 > Automated tests use only local fixtures/labs — never real-world targets.

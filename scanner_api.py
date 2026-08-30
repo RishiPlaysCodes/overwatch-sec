@@ -41,7 +41,7 @@ def _req(url, method="GET", timeout=12):
     import urllib.request
     import urllib.error
     req = urllib.request.Request(url, method=method,
-                                 headers={"User-Agent": "vulnscan-api/1.0",
+                                 headers={"User-Agent": "overwatch-api/1.0",
                                           "Origin": "https://evil.example"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -78,7 +78,7 @@ def _check_graphql(base, out):
     data = json.dumps({"query": "{__schema{queryType{name}}}"}).encode()
     req = urllib.request.Request(gql, data=data, method="POST",
                                  headers={"Content-Type": "application/json",
-                                          "User-Agent": "vulnscan-api/1.0"})
+                                          "User-Agent": "overwatch-api/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=12) as r:
             body = r.read(20000).decode("utf-8", "replace")

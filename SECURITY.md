@@ -1,6 +1,6 @@
 # Security & Safe-Use Policy
 
-vulnscan is an **authorized security-assessment** platform. Use it only against
+overwatch is an **authorized security-assessment** platform. Use it only against
 systems, applications, and accounts you **own** or have **explicit written
 permission** to test. Unauthorized scanning is illegal in most jurisdictions.
 

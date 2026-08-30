@@ -145,7 +145,7 @@ def write_bundle(assessment, outdir: str, pdf: bool = True) -> dict:
             pass
 
     # manifest
-    manifest = {"bundle": "vulnscan", "target": assessment.target, "profile": assessment.profile,
+    manifest = {"bundle": "overwatch", "target": assessment.target, "profile": assessment.profile,
                 "mode": assessment.mode, "scan_id": assessment.scan_id,
                 "artifacts": sorted(os.path.basename(p) for p in paths.values() if os.path.isfile(p)),
                 "evidence_files": n}

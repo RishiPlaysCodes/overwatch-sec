@@ -124,7 +124,7 @@ def prove_ssrf(target_url: str, param: str, collaborator, timeout: int = 8) -> t
     new = parsed._replace(query=urlencode({k: v[-1] for k, v in q.items()}))
     probe = urlunparse(new)
     try:
-        req = urllib.request.Request(probe, headers={"User-Agent": "vulnscan-oast/1.0"})
+        req = urllib.request.Request(probe, headers={"User-Agent": "overwatch-oast/1.0"})
         urllib.request.urlopen(req, timeout=timeout).read(64)
     except Exception:
         pass  # the target's own outbound call is what matters, not our response

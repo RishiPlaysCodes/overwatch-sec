@@ -17,7 +17,7 @@ them so the operator only has to point at a target. A program config captures:
   notes:        free text shown in the banner.
 
 Loads YAML if PyYAML is present, else the built-in tiny-yaml (see core.config).
-So `vulnscan <target> --program programs/foo.yaml` is all the operator needs.
+So `overwatch <target> --program programs/foo.yaml` is all the operator needs.
 """
 
 from __future__ import annotations

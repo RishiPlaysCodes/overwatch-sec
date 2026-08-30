@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# install.sh — one-command setup for vulnscan on Kali Linux / Debian / Ubuntu.
+# install.sh — one-command setup for overwatch on Kali Linux / Debian / Ubuntu.
 #
-# Installs EVERY external scanner vulnscan can orchestrate (recon/web/network/
+# Installs EVERY external scanner overwatch can orchestrate (recon/web/network/
 # mobile/cloud/code/container) plus Python deps, in one shot. It is designed to
 # be reliable and idempotent:
 #   * apt first, then `go install`, then curl/pip/pipx fallbacks
@@ -137,14 +137,14 @@ apt_install() {
 }
 
 # ---------------------------------------------------------------------------
-title "vulnscan setup — groups: ${GROUPS[*]}"
+title "overwatch setup — groups: ${GROUPS[*]}"
 
 if have apt-get; then
   info "updating apt package index…"
   $SUDO apt-get update -y >/dev/null 2>&1 && ok "apt index updated" || warn "apt update failed (continuing)"
 else
   warn "apt-get not found — this script targets Kali/Debian/Ubuntu."
-  warn "On other distros install the tools with your package manager; vulnscan still runs and skips missing ones."
+  warn "On other distros install the tools with your package manager; overwatch still runs and skips missing ones."
 fi
 
 # ensure pipx is available (best PEP668-safe way to install python CLIs)
@@ -281,8 +281,8 @@ else
 fi
 
 echo
-ok "Setup complete. vulnscan runs regardless — it uses whatever is installed and clearly reports the rest."
-echo -e "   ${BOLD}python3 vulnscan.py --list-tools${Z}                 ${C}# see tool availability${Z}"
-echo -e "   ${BOLD}python3 vulnscan.py --type recon example.com${Z}     ${C}# bug-bounty recon${Z}"
-echo -e "   ${BOLD}python3 vulnscan.py https://your-site.com${Z}"
+ok "Setup complete. overwatch runs regardless — it uses whatever is installed and clearly reports the rest."
+echo -e "   ${BOLD}python3 overwatch.py --list-tools${Z}                 ${C}# see tool availability${Z}"
+echo -e "   ${BOLD}python3 overwatch.py --type recon example.com${Z}     ${C}# bug-bounty recon${Z}"
+echo -e "   ${BOLD}python3 overwatch.py https://your-site.com${Z}"
 warn "Authorized / in-scope targets only. Detection & recon — no auto-exploitation."

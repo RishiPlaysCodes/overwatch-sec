@@ -1,7 +1,7 @@
 """
 analyzers/ — dependency-free static analyzers that produce normalized findings.
 
-These run WITHOUT external tools (stdlib only), so `vulnscan ./repo` performs
+These run WITHOUT external tools (stdlib only), so `overwatch ./repo` performs
 real CI/CD and IaC analysis even on a minimal box. Each analyzer returns a list
 of finding dicts built via common.finding(kb_id, evidence), so results flow
 through the same normalization → correlation → reporting pipeline as every other

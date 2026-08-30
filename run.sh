@@ -11,7 +11,7 @@
 #   ./run.sh --setup     force re-run tool setup
 #   ./run.sh --update    refresh CVE feeds now
 #   ./run.sh --no-setup  skip setup/feeds entirely (just scan)
-#   ...any vulnscan.py flags are passed through (e.g. --yes --type web)
+#   ...any overwatch.py flags are passed through (e.g. --yes --type web)
 #
 # What it does on FIRST run (once, tracked by a .setup-done marker):
 #   1) installs tools via install.sh (best-effort; missing tools are skipped)
@@ -36,7 +36,7 @@ if [ -z "$PY" ]; then
   exit 1
 fi
 
-# ---- parse our own control flags; pass the rest to vulnscan.py ----
+# ---- parse our own control flags; pass the rest to overwatch.py ----
 DO_SETUP="auto"; DO_UPDATE="auto"; ARGS=()
 for a in "$@"; do
   case "$a" in
@@ -69,4 +69,4 @@ fi
 
 # ---- run the scanner (interactive if no target) ----
 say "Launching scanner…"
-exec "$PY" "$DIR/vulnscan.py" "${ARGS[@]}"
+exec "$PY" "$DIR/overwatch.py" "${ARGS[@]}"

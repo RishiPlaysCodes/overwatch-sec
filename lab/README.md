@@ -5,14 +5,14 @@ Test the platform without attacking anyone. Everything binds to `127.0.0.1`.
 ## Quickest (no Docker, stdlib only)
 ```bash
 python3 lab/app.py                                   # starts insecure demo on :8000
-python3 vulnscan.py http://127.0.0.1:8000 --profile web --yes
+python3 overwatch.py http://127.0.0.1:8000 --profile web --yes
 ```
 
 ## Full lab (Docker)
 ```bash
 cd lab && docker compose up -d
-python3 ../vulnscan.py http://127.0.0.1:3000 --profile web --mode deep --yes   # Juice Shop
-python3 ../vulnscan.py http://127.0.0.1:8080 --profile web --yes               # DVWA
+python3 ../overwatch.py http://127.0.0.1:3000 --profile web --mode deep --yes   # Juice Shop
+python3 ../overwatch.py http://127.0.0.1:8080 --profile web --yes               # DVWA
 docker compose down
 ```
 

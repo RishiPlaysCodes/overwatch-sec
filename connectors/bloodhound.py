@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-connectors/bloodhound.py — BloodHound export -> vulnscan identity graph.
+connectors/bloodhound.py — BloodHound export -> overwatch identity graph.
 
 Accepts either:
   - a simple {"nodes":[...], "edges":[...]} export, or

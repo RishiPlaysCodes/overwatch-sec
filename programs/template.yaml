@@ -1,5 +1,5 @@
 # Generic bug-bounty program template — copy and edit for any program.
-#   python3 vulnscan.py https://TARGET --profile bugbounty --program programs/this.yaml --yes
+#   python3 overwatch.py https://TARGET --profile bugbounty --program programs/this.yaml --yes
 name: My Program
 
 scope:

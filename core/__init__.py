@@ -1,5 +1,5 @@
 """
-core — the platform engine for vulnscan.
+core — the platform engine for overwatch.
 
 This package holds the target-agnostic brain of the assessment platform:
 

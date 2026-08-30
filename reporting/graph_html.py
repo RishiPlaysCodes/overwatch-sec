@@ -63,7 +63,7 @@ def write_graph_html(assessment, path: str) -> str:
 
     doc = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>vulnscan attack graph — __TITLE__</title>
+<title>overwatch attack graph — __TITLE__</title>
 <style>
  html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0f1419;color:#e6e6e6}
  header{padding:12px 18px;background:#111a24;border-bottom:2px solid #1f2d3a;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
@@ -81,7 +81,7 @@ def write_graph_html(assessment, path: str) -> str:
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
 </head><body>
 <header>
- <span>🛡️ <b>vulnscan</b> attack graph — __TITLE__</span>
+ <span>🛡️ <b>overwatch</b> attack graph — __TITLE__</span>
  <label class="muted">min severity
   <select id="sev">
    <option value="4">info+</option><option value="3">low+</option>

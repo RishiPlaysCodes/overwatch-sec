@@ -34,7 +34,7 @@ def test_sarif_structure():
     doc = sarif.to_sarif(_Assessment(_mk()))
     assert doc["version"] == "2.1.0"
     run = doc["runs"][0]
-    assert run["tool"]["driver"]["name"] == "vulnscan"
+    assert run["tool"]["driver"]["name"] == "overwatch"
     assert len(run["results"]) == 2
     assert run["results"][0]["level"] in ("error", "warning", "note")
     assert "security-severity" in run["tool"]["driver"]["rules"][0]["properties"]

@@ -4,10 +4,10 @@ core/checkpoint.py — scan checkpointing & resume (spec §22).
 
 Deep assessments can take a while; a crash shouldn't lose everything. The
 orchestrator writes a checkpoint after each pipeline stage into
-~/.cache/vulnscan/scans/<scan-id>.json capturing stage status
+~/.cache/overwatch/scans/<scan-id>.json capturing stage status
 (completed/running/failed/skipped/blocked) and the findings gathered so far.
 
-    vulnscan target --resume <scan-id>
+    overwatch target --resume <scan-id>
 
 On resume, stages already marked "completed" are skipped and their findings are
 restored, so the scan continues from where it stopped.
@@ -19,7 +19,7 @@ import json
 import os
 import time
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "vulnscan", "scans")
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "overwatch", "scans")
 
 STAGE_STATES = ("pending", "running", "completed", "failed", "skipped", "blocked")
 
@@ -99,7 +99,7 @@ class Checkpoint:
                 "stages": counts, "findings": len(self.findings)}
 
 
-BASELINE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "vulnscan", "baselines")
+BASELINE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "overwatch", "baselines")
 
 
 def _baseline_key(target: str) -> str:

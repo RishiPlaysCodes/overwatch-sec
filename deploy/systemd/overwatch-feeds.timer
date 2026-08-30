@@ -1,5 +1,5 @@
 [Unit]
-Description=Run vulnscan feed refresh on a schedule
+Description=Run overwatch feed refresh on a schedule
 Documentation=https://github.com/RishiPlaysCodes/script-test-case
 
 [Timer]

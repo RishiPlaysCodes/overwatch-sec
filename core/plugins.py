@@ -60,7 +60,7 @@ def load_plugins(directory: str | None = None) -> list[str]:
             continue
         path = os.path.join(directory, fname)
         try:
-            spec = importlib.util.spec_from_file_location(f"vulnscan_plugin_{fname[:-3]}", path)
+            spec = importlib.util.spec_from_file_location(f"overwatch_plugin_{fname[:-3]}", path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)   # type: ignore
             if hasattr(mod, "register"):

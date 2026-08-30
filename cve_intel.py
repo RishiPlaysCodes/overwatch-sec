@@ -14,7 +14,7 @@ Design goals:
   - OFFLINE-SAFE: every network call is wrapped; if there is no internet (or the
     feed is down) enrichment degrades gracefully and the scan still completes.
   - CACHED: the KEV catalog is fetched once per run and reused; NVD lookups are
-    memoized. A local disk cache (~/.cache/vulnscan) avoids repeat downloads.
+    memoized. A local disk cache (~/.cache/overwatch) avoids repeat downloads.
 
 This module NEVER downloads or runs exploit code. It only reads vulnerability
 metadata to prioritize findings and guide patching.
@@ -39,7 +39,7 @@ except Exception:  # pragma: no cover
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={}"
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "vulnscan")
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "overwatch")
 KEV_CACHE = os.path.join(CACHE_DIR, "kev.json")
 KEV_TTL = 24 * 3600  # refresh KEV at most once/day
 
@@ -63,7 +63,7 @@ def _http_json(url: str, timeout: int = 12):
     global _online
     if not _online:
         return None
-    headers = {"User-Agent": "vulnscan-cve-intel/1.0"}
+    headers = {"User-Agent": "overwatch-cve-intel/1.0"}
     try:
         if _HAS_REQUESTS:
             r = requests.get(url, headers=headers, timeout=timeout)

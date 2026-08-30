@@ -406,7 +406,7 @@ def write_html(assessment, path: str) -> str:
     cov = esc(assessment.coverage.render()) if assessment.coverage else ""
     doc = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>vulnscan report — {esc(assessment.target)}</title>
+<title>overwatch report — {esc(assessment.target)}</title>
 <style>
 *{{box-sizing:border-box}}body{{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#0f1419;color:#e6e6e6}}
 header{{background:#111a24;padding:24px 32px;border-bottom:2px solid #1f2d3a}}
@@ -428,7 +428,7 @@ code{{color:#7fd1ff}}.rem{{color:#bcd;max-width:320px}}
 pre{{background:#16212c;padding:16px;border-radius:8px;overflow:auto;white-space:pre-wrap}}
 .foot{{color:#789;font-size:12px;margin-top:24px}}
 </style></head><body>
-<header><h1>🛡️ VULNSCAN — Security Assessment Report</h1>
+<header><h1>🛡️ OVERWATCH-SEC — Security Assessment Report</h1>
 <div class="sub">Target: <b>{esc(assessment.target)}</b> &nbsp;|&nbsp; Type: {esc(assessment.kind)}
 &nbsp;|&nbsp; Profile: {esc(assessment.profile)} &nbsp;|&nbsp; Mode: {esc(assessment.mode)}
 &nbsp;|&nbsp; Scope: {esc(assessment.scope.describe())}</div></header>

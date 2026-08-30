@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install-scheduler.sh — set up automatic local feed refresh for vulnscan.
+# install-scheduler.sh — set up automatic local feed refresh for overwatch.
 #
 # Chooses systemd timers if available (preferred), else falls back to cron.
 # This keeps CVE feeds fresh whenever THIS machine is on. (For refresh even when
@@ -25,9 +25,9 @@ echo "[*] repo: $REPO_DIR"
 install_systemd_user() {
   local unit_dir="$HOME/.config/systemd/user"
   mkdir -p "$unit_dir"
-  cat > "$unit_dir/vulnscan-feeds.service" <<EOF
+  cat > "$unit_dir/overwatch-feeds.service" <<EOF
 [Unit]
-Description=Refresh vulnscan CVE feeds
+Description=Refresh overwatch CVE feeds
 Wants=network-online.target
 After=network-online.target
 
@@ -37,9 +37,9 @@ WorkingDirectory=$REPO_DIR
 ExecStart=$PY $REPO_DIR/feeds/update_feeds.py --nvd-days 7
 Nice=10
 EOF
-  cat > "$unit_dir/vulnscan-feeds.timer" <<EOF
+  cat > "$unit_dir/overwatch-feeds.timer" <<EOF
 [Unit]
-Description=Run vulnscan feed refresh daily
+Description=Run overwatch feed refresh daily
 
 [Timer]
 OnCalendar=daily
@@ -50,14 +50,14 @@ RandomizedDelaySec=15m
 WantedBy=timers.target
 EOF
   systemctl --user daemon-reload
-  systemctl --user enable --now vulnscan-feeds.timer
-  echo "[+] systemd user timer installed. Check: systemctl --user list-timers | grep vulnscan"
+  systemctl --user enable --now overwatch-feeds.timer
+  echo "[+] systemd user timer installed. Check: systemctl --user list-timers | grep overwatch"
   echo "    (run 'loginctl enable-linger $USER' so it runs while you're logged out)"
 }
 
 install_cron() {
   local line="17 5 * * * cd $REPO_DIR && $PY feeds/update_feeds.py --nvd-days 7 >> $REPO_DIR/feeds.log 2>&1"
-  # Idempotent: remove any old vulnscan cron line, then add.
+  # Idempotent: remove any old overwatch cron line, then add.
   ( crontab -l 2>/dev/null | grep -v 'feeds/update_feeds.py' ; echo "$line" ) | crontab -
   echo "[+] cron installed (daily 05:17). Check: crontab -l | grep update_feeds"
 }

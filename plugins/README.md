@@ -28,4 +28,4 @@ def register(reg):
 Rules:
 - Validators must be **non-destructive** (re-observe facts, never exploit).
 - A broken plugin is caught and skipped; it never crashes the engine.
-- Load them with `vulnscan.py --plugins` (or they load automatically when present).
+- Load them with `overwatch.py --plugins` (or they load automatically when present).

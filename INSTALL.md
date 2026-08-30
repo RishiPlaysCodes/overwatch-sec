@@ -8,13 +8,13 @@ and PyYAML are optional — missing ones are skipped and reported in coverage.
 ```bash
 git clone https://github.com/RishiPlaysCodes/script-test-case.git
 cd script-test-case
-python3 vulnscan.py --version          # core works immediately (stdlib only)
+python3 overwatch.py --version          # core works immediately (stdlib only)
 ```
 
 ## Recommended — install everything in one shot (Kali / Debian / Ubuntu / WSL)
 
 ```bash
-python3 vulnscan.py --install          # installs ALL external scanners, then exits
+python3 overwatch.py --install          # installs ALL external scanners, then exits
 # equivalent to:  ./install.sh
 python3 feeds/update_feeds.py          # pull fresh CISA KEV + NVD data
 ```
@@ -28,12 +28,12 @@ exact command to finish it.
 
 Install only specific groups:
 ```bash
-python3 vulnscan.py --install recon web      # or: ./install.sh recon web
+python3 overwatch.py --install recon web      # or: ./install.sh recon web
 ```
 
-Let vulnscan install a target's tools automatically, right before scanning:
+Let overwatch install a target's tools automatically, right before scanning:
 ```bash
-python3 vulnscan.py https://your-site.com --auto-install
+python3 overwatch.py https://your-site.com --auto-install
 ```
 
 Manual equivalent:
@@ -60,7 +60,7 @@ pip install -r requirements.txt        # requests, and pyyaml/pytest (optional)
 
 Check what's detected:
 ```bash
-python3 vulnscan.py --list-tools
+python3 overwatch.py --list-tools
 ```
 
 ## Tests

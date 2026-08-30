@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-connectors/prowler.py — Prowler (v3/v4) JSON -> vulnscan findings/threat data.
+connectors/prowler.py — Prowler (v3/v4) JSON -> overwatch findings/threat data.
 
 Prowler emits a list of check results. We convert FAILing, security-relevant
 checks into the threat_detection input shape where they map cleanly (risky IAM

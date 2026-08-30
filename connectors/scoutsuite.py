@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-connectors/scoutsuite.py — ScoutSuite report -> vulnscan threat data.
+connectors/scoutsuite.py — ScoutSuite report -> overwatch threat data.
 
 ScoutSuite emits a big JSON of cloud config + flagged items per service. We
 extract the security-relevant bits into the threat_detection input shape:

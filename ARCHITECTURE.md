@@ -1,13 +1,13 @@
 # Architecture
 
-vulnscan is a modular, plugin-friendly security-assessment platform. A thin CLI
+overwatch is a modular, plugin-friendly security-assessment platform. A thin CLI
 drives a **core engine** that detects the target, enforces policy + scope, runs
 the appropriate scanner pipeline, normalizes results into a unified model,
 correlates attack paths, and produces industry-grade reports.
 
 ```
                          ┌──────────────┐
-   vulnscan.py (CLI) ───▶│ core.config  │  profiles/*.yaml, policies/*.yaml
+   overwatch.py (CLI) ───▶│ core.config  │  profiles/*.yaml, policies/*.yaml
                          └──────┬───────┘
                                 ▼
         ┌───────────────  core.orchestrator  ───────────────┐
