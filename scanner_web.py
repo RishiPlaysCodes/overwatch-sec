@@ -157,7 +157,8 @@ def scan(url: str, outdir: str, skip: set[str]) -> dict:
     result["findings"] += _builtin_checks(url)
 
     stages = [
-        ("nmap", ["nmap", "-sV", "-Pn", "--top-ports", "1000", host], "nmap.txt", 1200, None, "apt/dnf install nmap"),
+        ("nmap", ["nmap", "-sV", "-Pn", "-T4", "--open", "--top-ports", "100",
+                  "--version-intensity", "3", "--host-timeout", "5m", host], "nmap.txt", 360, None, "apt/dnf install nmap"),
         ("whatweb", ["whatweb", "-a", "3", url], "whatweb.txt", 300, None, ""),
         ("testssl", ["testssl.sh" if have("testssl.sh") else "testssl", "--quiet", "--color", "0", host],
          "testssl.txt", 1200, "web.tls.weak", "github.com/drwetter/testssl.sh"),

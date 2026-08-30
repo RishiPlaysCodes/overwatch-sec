@@ -65,11 +65,37 @@ def run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
         )
         return p.returncode, p.stdout
     except subprocess.TimeoutExpired as e:
-        return 124, f"[timeout after {timeout}s]\n{e.stdout or ''}"
+        out = e.stdout or ""
+        if isinstance(out, bytes):
+            out = out.decode("utf-8", "replace")
+        return 124, f"[timeout after {timeout}s]\n{out}"
     except FileNotFoundError:
         return 127, f"[tool not found: {cmd[0]}]"
     except Exception as e:  # pragma: no cover
         return 1, f"[error running {cmd[0]}: {e}]"
+
+
+def run_live(cmd: list[str], timeout: int = 900) -> int:
+    """
+    Run a command with its output streamed straight to the terminal (so the user
+    sees live progress). Returns the exit code. On timeout, returns 124.
+    Use for long tools like nmap; pair with the tool's own -oN/-o file to persist
+    output for the report.
+    """
+    info("running: " + " ".join(cmd) + f"   (timeout {timeout}s — Ctrl+C to skip)")
+    try:
+        return subprocess.run(cmd, timeout=timeout).returncode
+    except subprocess.TimeoutExpired:
+        warn(f"'{cmd[0]}' hit the {timeout}s time limit — moving on with partial results")
+        return 124
+    except FileNotFoundError:
+        return 127
+    except KeyboardInterrupt:
+        warn(f"'{cmd[0]}' skipped by user (Ctrl+C)")
+        return 130
+    except Exception as e:  # pragma: no cover
+        warn(f"error running {cmd[0]}: {e}")
+        return 1
 
 
 def http_get(url: str, timeout: int = 15):

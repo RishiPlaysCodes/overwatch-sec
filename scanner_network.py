@@ -26,7 +26,15 @@ import os
 import re
 
 import cve_intel
-from common import banner, err, finding, have, info, ok, run, warn
+from common import banner, err, finding, have, info, ok, run, run_live, warn
+
+
+def _read(path: str) -> str:
+    try:
+        with open(path, "r", errors="ignore") as fh:
+            return fh.read()
+    except Exception:
+        return ""
 
 _PORT_RE = re.compile(r"^(\d+)/(tcp|udp)\s+(\S+)\s+(\S+)\s*(.*)$")
 
@@ -62,17 +70,26 @@ def _enrich_cves_from_text(text: str, source: str) -> list[dict]:
 def scan(target: str, outdir: str, skip: set[str]) -> dict:
     result = {"profile": "network", "target": target, "findings": [], "tools": []}
 
+    # The main CLI injects "__deep__" into `skip` when --deep is passed.
+    deep = "__deep__" in skip
+    top_ports = "1000" if deep else "200"
+
     if not have("nmap"):
         banner("NETWORK — nmap")
         warn("nmap not installed — network scanning needs it (apt install nmap)")
         result["tools"].append({"tool": "nmap", "status": "skipped", "reason": "not installed (apt/dnf install nmap)"})
     else:
-        # 1) Service/version discovery
-        banner("NETWORK — service/version discovery (nmap -sV)")
+        # 1) Service/version discovery — fast defaults + live progress + hard timeout.
+        banner(f"NETWORK — service/version discovery (nmap -sV, top {top_ports} ports)")
+        info("This streams live progress below. It won't hang — there is a hard time limit.")
         sv_path = os.path.join(outdir, "nmap-services.txt")
-        rc, out = run(["nmap", "-sV", "-Pn", "--top-ports", "1000", target], timeout=1800)
-        with open(sv_path, "w") as fh:
-            fh.write(out)
+        rc = run_live(
+            ["nmap", "-sV", "-Pn", "-T4", "--open", "--top-ports", top_ports,
+             "--version-intensity", "3", "--host-timeout", "8m", "--stats-every", "20s",
+             "-oN", sv_path, target],
+            timeout=720,
+        )
+        out = _read(sv_path)
         result["tools"].append({"tool": "nmap -sV", "status": "done" if rc == 0 else f"exit {rc}", "output": sv_path})
         services = _parse_open_ports(out)
         for s in services:
@@ -81,16 +98,24 @@ def scan(target: str, outdir: str, skip: set[str]) -> dict:
                         f"{s['port']}/{s['proto']} {s['service']} {s['version']}".strip()))
         ok(f"discovered {len(services)} open service(s)")
 
-        # 2) NSE 'vuln' category (known service vulnerabilities; excludes dos)
-        if "nmap-vuln" not in skip:
-            banner("NETWORK — known-vuln checks (nmap --script vuln)")
+        # 2) NSE 'vuln' scripts — heavy; only in --deep mode, and only on OPEN ports.
+        if not deep:
+            info("Skipping heavy NSE vuln scripts (fast mode). Re-run with --deep for full nmap --script vuln.")
+            result["tools"].append({"tool": "nmap --script vuln", "status": "skipped",
+                                    "reason": "fast mode — use --deep to enable (slower, thorough)"})
+        elif services:
+            ports = ",".join(sorted({s["port"] for s in services}))
+            banner(f"NETWORK — known-vuln checks (nmap --script vuln on ports {ports})")
+            info("Deep NSE scan — streams progress; hard time limit applies.")
             v_path = os.path.join(outdir, "nmap-vuln.txt")
-            rc, vout = run(["nmap", "-sV", "-Pn", "--script", "vuln", "--top-ports", "1000", target], timeout=2400)
-            with open(v_path, "w") as fh:
-                fh.write(vout)
+            rc = run_live(
+                ["nmap", "-sV", "-Pn", "-T4", "-p", ports, "--script", "vuln",
+                 "--host-timeout", "12m", "--stats-every", "30s", "-oN", v_path, target],
+                timeout=1500,
+            )
+            vout = _read(v_path)
             result["tools"].append({"tool": "nmap --script vuln",
                                     "status": "done" if rc == 0 else f"exit {rc}", "output": v_path})
-            # Emit a finding for each service block flagged VULNERABLE
             for block in re.split(r"\n(?=\d+/(?:tcp|udp))", vout):
                 if "VULNERABLE" in block:
                     head = block.strip().splitlines()[0][:60]
@@ -98,6 +123,8 @@ def scan(target: str, outdir: str, skip: set[str]) -> dict:
                     result["findings"].append(finding("network.vuln_service", f"{head} :: {title_line[:120]}"))
             result["findings"] += _enrich_cves_from_text(vout, "nmap NSE")
             ok("NSE vuln scripts complete")
+        else:
+            info("No open ports found — skipping NSE vuln scripts.")
 
         # 3) searchsploit correlation
         banner("NETWORK — Exploit-DB correlation (searchsploit)")

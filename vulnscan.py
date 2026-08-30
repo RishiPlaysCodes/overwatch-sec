@@ -231,6 +231,8 @@ def main() -> int:
                     default="auto", help="force target type (default: auto-detect)")
     ap.add_argument("--out", default=None, help="output directory")
     ap.add_argument("--skip", default="", help="comma list of tools to skip")
+    ap.add_argument("--deep", action="store_true",
+                    help="thorough (slower) mode: enables heavy nmap NSE vuln scripts + more ports")
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets / CI)")
     args = ap.parse_args()
 
@@ -242,6 +244,8 @@ def main() -> int:
     if profile == "web" and not re.match(r"^https?://", target) and target not in ("aws", "azure", "gcp"):
         target = "https://" + target
     skip = {s.strip() for s in args.skip.split(",") if s.strip()}
+    if args.deep:
+        skip.add("__deep__")   # scanners read this as "thorough mode"
 
     banner(f"vulnscan — profile detected: {profile.upper()}")
     ok(f"target: {target}")
