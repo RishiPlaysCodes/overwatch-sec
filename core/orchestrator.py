@@ -46,6 +46,8 @@ class Assessment:
     scanner: str = ""
     out_of_scope_dropped: list = field(default_factory=list)
     plan: dict = field(default_factory=dict)
+    detection: dict = field(default_factory=dict)   # purple-team detection verification
+    scan_id: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -59,6 +61,7 @@ class Assessment:
             "findings": [f.to_dict() for f in self.findings],
             "attack_paths": self.attack_paths,
             "out_of_scope_dropped": self.out_of_scope_dropped,
+            "detection": self.detection,
             "coverage": self.coverage.summary() if self.coverage else {},
         }
 
@@ -117,7 +120,8 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         secrets: list[str] | None = None, force_kind: str | None = None,
         triage_store=None, load_plugins: bool = True,
         identity_file: str | None = None, threat_file: str | None = None,
-        ioc_file: str | None = None) -> Assessment:
+        ioc_file: str | None = None, telemetry_file: str | None = None,
+        scan_id: str | None = None) -> Assessment:
     # extensibility: load drop-in plugins before detection/registry use
     if load_plugins:
         try:
@@ -150,6 +154,13 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
                             policy=policy, scope=scope, scanner=scanner_mod, coverage=cov)
     assessment.plan = build_plan(target, profile, mode, policy)
 
+    # checkpoint (progress is persisted so a crash doesn't lose everything)
+    from .checkpoint import Checkpoint, new_scan_id
+    sid = scan_id or new_scan_id(target)
+    assessment.scan_id = sid
+    cp = Checkpoint(sid, {"target": target, "profile": profile, "mode": mode, "kind": kind})
+    cp.mark("scan", "running")
+
     # tool availability -> coverage
     for t in capabilities.for_kind(kind):
         (cov.tools_executed if t.available() and t.name in assessment.plan["tools_selected"]
@@ -176,6 +187,16 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
             cov.tools_unavailable.append(t.get("tool", "?"))
         else:
             cov.tools_executed.append(t.get("tool", "?"))
+
+    # availability & resilience assessment (safe, passive) for network-facing web/api
+    if kind in ("web", "api", "recon"):
+        try:
+            from validation import resilience
+            ra = resilience.assess(target)
+            raw.setdefault("findings", []).extend(ra)
+            cov.ran("availability_assessment", detail=f"{len(ra)} signal(s)")
+        except Exception as e:
+            cov.errored("availability_assessment", detail=str(e)[:120])
 
     # scope only applies to network-facing targets; local artifacts (code/cloud
     # IaC dir / container image / k8s manifests / mobile files) have no "scope".
@@ -234,12 +255,20 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
 
     findings = dedupe(findings)
 
-    # safe, policy-gated validation (upgrades detected -> validated / not_exploitable)
+    cp.store_findings(findings)
+    cp.mark("collect", "completed", f"{len(findings)} findings")
+
+    # safe, policy-gated validation (upgrades detected -> validated / not_exploitable /
+    # not_validated / manual / blocked_by_*), driven by the capability registry.
     try:
         from validation import validator
-        validator.validate(findings, policy, coverage=cov)
+        vctx = {"has_auth": bool(secrets), "in_scope": True}
+        validator.validate(findings, policy, coverage=cov, context=vctx)
+        cp.store_findings(findings)
+        cp.mark("validate", "completed")
     except Exception as e:
         cov.errored("validation", detail=str(e)[:150])
+        cp.mark("validate", "failed", str(e)[:120])
 
     # attack-path correlation + MITRE mapping
     try:
@@ -249,6 +278,17 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         cov.attack_techniques = len({m for f in findings for m in f.mitre})
     except Exception as e:
         cov.errored("attack_paths", detail=str(e)[:150])
+
+    # purple-team detection verification (always available; run for the purple
+    # profile or whenever a telemetry export is supplied)
+    if profile == "purple" or telemetry_file:
+        try:
+            from purple import verification
+            assessment.detection = verification.load_and_verify(findings, telemetry_file)
+            cov.ran("detection_verification",
+                    detail=f"gaps={assessment.detection['summary']['gaps']}")
+        except Exception as e:
+            cov.errored("detection_verification", detail=str(e)[:150])
 
     # overlay persistent triage decisions (false_positive / accepted_risk / fixed)
     if triage_store is not None:
@@ -262,7 +302,42 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
     cov.checks_run = len(raw.get("findings", []))
     findings.sort(key=sort_key)
     assessment.findings = findings
+    cp.store_findings(findings)
+    cp.mark("report", "completed", f"score-ready, {len(findings)} findings")
     return assessment
+
+
+def resume_scan(scan_id: str) -> Assessment | None:
+    """
+    Rebuild an assessment from a saved checkpoint WITHOUT rescanning (spec §22).
+    Restores the findings gathered/validated before the interruption and
+    re-derives attack paths + detection verification (cheap, deterministic).
+    """
+    from .checkpoint import Checkpoint
+    from .policy import Policy
+    from .scope import Scope
+    cp = Checkpoint.load(scan_id)
+    if cp is None:
+        return None
+    meta = cp.meta or {}
+    findings = cp.restore_findings()
+    cov = cov_mod.Coverage()
+    cov.ran("resume", detail=f"restored {len(findings)} findings from {scan_id} "
+                             f"(stages: {cp.summary()['stages']})")
+    a = Assessment(target=meta.get("target", ""), kind=meta.get("kind", "web"),
+                   profile=meta.get("profile", "bugbounty"), mode=meta.get("mode", "fast"),
+                   policy=Policy.for_profile(meta.get("profile", "bugbounty"), meta.get("mode", "fast")),
+                   scope=Scope.single(meta.get("target", "")), coverage=cov, scan_id=scan_id)
+    try:
+        from attack_paths import correlation, mitre
+        mitre.annotate(findings)
+        a.attack_paths = correlation.build_paths(findings, a.target)
+        cov.attack_techniques = len({m for f in findings for m in f.mitre})
+    except Exception as e:
+        cov.errored("attack_paths", detail=str(e)[:120])
+    findings.sort(key=sort_key)
+    a.findings = findings
+    return a
 
 
 def _try_connector(path: str):

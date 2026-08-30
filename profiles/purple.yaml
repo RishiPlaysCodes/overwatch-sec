@@ -1,0 +1,14 @@
+# Purple-team profile — detection verification.
+# Runs authorized test activity (validation level) and correlates it with your
+# defensive telemetry to measure detection coverage and surface gaps.
+name: purple
+description: Detection verification — does defensive tooling see authorized test activity?
+default_mode: deep
+scanners:
+  - web
+  - api
+  - network
+report_formats:
+  - md
+  - json
+  - html

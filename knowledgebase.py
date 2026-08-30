@@ -596,6 +596,43 @@ KB: dict[str, dict] = {
         "attack": "Attacker sniffs node traffic, sees host processes, and bypasses network segmentation.",
         "patch": "Disable hostNetwork/hostPID/hostIPC unless strictly required; enforce via admission policy.",
     },
+
+    # ============================ AVAILABILITY / RESILIENCE (safe, passive) =
+    "availability.no_rate_limit": {
+        "cwe": "CWE-770",
+        "owasp": "API4:2023 Unrestricted Resource Consumption",
+        "severity": "low",
+        "title": "No rate-limiting observed",
+        "description": "No rate-limit headers (X-RateLimit-*, RateLimit-*, Retry-After) were seen in "
+        "responses. This is a passive signal, not proof — limits may exist without headers.",
+        "attack": "Absent throttling makes credential brute-force, scraping, and resource-exhaustion (DoS) "
+        "easier and cheaper for an attacker.",
+        "patch": "Enforce rate limiting / quotas at the edge (WAF/API gateway) and per-account; return "
+        "429 with Retry-After. Load-test capacity under authorization.",
+    },
+    "availability.no_edge_protection": {
+        "cwe": "CWE-1188",
+        "owasp": "Cloud: Security Misconfiguration",
+        "severity": "info",
+        "title": "No WAF/CDN edge protection detected",
+        "description": "No CDN/WAF fingerprints (Cloudflare, Akamai, Fastly, AWS, etc.) were observed in "
+        "response headers. Passive signal only.",
+        "attack": "Without an edge layer, the origin is directly exposed to volumetric and application-layer "
+        "abuse and has less absorption capacity.",
+        "patch": "Front the service with a CDN/WAF that provides caching, rate limiting, and DDoS absorption; "
+        "restrict the origin to the edge.",
+    },
+    "availability.amplification_surface": {
+        "cwe": "CWE-406",
+        "owasp": "Availability",
+        "severity": "info",
+        "title": "Potential amplification/abuse surface",
+        "description": "An endpoint/parameter may allow expensive operations or reflection that amplify load.",
+        "attack": "Attackers abuse expensive endpoints (search, export, unbounded queries) to exhaust resources "
+        "with modest effort.",
+        "patch": "Add pagination/limits, cache expensive responses, and require auth on costly operations; "
+        "monitor and cap concurrency.",
+    },
 }
 
 

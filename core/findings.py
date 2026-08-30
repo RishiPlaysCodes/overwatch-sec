@@ -22,16 +22,31 @@ from dataclasses import dataclass, field, asdict
 # ---- ordered vocabularies -------------------------------------------------
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
-# How exploitable / real is it?  (section 5 of the spec)
+# How exploitable / real is it?  (validation lifecycle)
 VALIDATION_STATES = (
-    "detected",          # a signal was seen
-    "likely",            # multiple signals agree
-    "validated",         # safely confirmed by a controlled check
-    "exploitable",       # confirmed exploitable (only via authorized validation)
-    "not_exploitable",   # checked, cannot be exploited in this context
-    "false_positive",    # ruled out
-    "unknown",           # could not determine
+    "detected",                     # a signal was seen
+    "likely",                       # multiple signals agree
+    "validation_pending",           # queued for controlled validation
+    "validated",                    # safely confirmed by a controlled check
+    "not_validated",                # validation ran but did not confirm
+    "exploitable",                  # confirmed exploitable (authorized validation only)
+    "not_exploitable",              # checked, cannot be exploited in this context
+    "false_positive",               # ruled out
+    "manual_validation_required",   # needs a human (unsafe/complex to auto-verify)
+    "blocked_by_policy",            # a validator exists but the policy forbids it
+    "blocked_by_scope",             # target/asset out of authorized scope
+    "blocked_by_authentication",    # needs credentials that weren't supplied
+    "blocked_by_missing_dependency",# a required tool isn't installed
+    "unknown",                      # could not determine
+    "error",                        # validation errored
 )
+
+# validation states that mean "we tried/decided, don't just say 'detected'"
+_TERMINAL_VALIDATION = {
+    "validated", "not_validated", "exploitable", "not_exploitable", "false_positive",
+    "manual_validation_required", "blocked_by_policy", "blocked_by_scope",
+    "blocked_by_authentication", "blocked_by_missing_dependency", "error",
+}
 
 # How confident are we in the detection itself?  (section 17)
 CONFIDENCE_LEVELS = (
@@ -81,6 +96,24 @@ class Finding:
     # bookkeeping
     profile: str = ""
     tags: list[str] = field(default_factory=list)
+    # structured validation evidence (populated by the validation engine)
+    validation_evidence: dict = field(default_factory=dict)  # {tool,tool_version,test,reason,
+                                                              #  timestamp,request,response,status}
+
+    def set_validation(self, state: str, *, tool: str = "", tool_version: str = "",
+                       test: str = "", reason: str = "", detail: str = "",
+                       confidence: str | None = None) -> None:
+        """Record a validation outcome with structured, timestamped evidence."""
+        import time
+        self.validation = state
+        if confidence:
+            self.confidence = confidence
+        ev = {"tool": tool, "tool_version": tool_version, "test": test, "reason": reason,
+              "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        ev = {k: v for k, v in ev.items() if v}
+        self.validation_evidence.update(ev)
+        if detail:
+            self.evidence = (self.evidence + f"  [{state}: {detail}]").strip()
 
     def fingerprint(self) -> str:
         """Stable id for baseline/retest comparison (ignores volatile evidence)."""

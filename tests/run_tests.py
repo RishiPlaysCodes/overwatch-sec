@@ -25,9 +25,11 @@ import test_attack_paths
 import test_phase2
 import test_phase3
 import test_phase4
+import test_phase_pt
+import test_phase_res
 
 UNIT_MODULES = [test_scope, test_policy, test_detector_findings, test_attack_paths,
-                test_phase2, test_phase3, test_phase4]
+                test_phase2, test_phase3, test_phase4, test_phase_pt, test_phase_res]
 
 
 def _run_zero_arg_tests(mod):

@@ -135,6 +135,53 @@ python3 vulnscan.py aws --threat-input scoutsuite.json
 ```
 Connectors are offline parsers — they never call a live directory/cloud API.
 
+## Validation states & evidence
+
+Every finding carries a validation state and structured, timestamped evidence:
+`detected` · `likely` · `validated` · `not_validated` · `not_exploitable` ·
+`manual_validation_required` · `blocked_by_policy` / `_scope` / `_authentication`
+/ `_missing_dependency` · `error`. The **validation capability registry**
+(`validation/registry.py`) decides, per finding + policy + context, whether a
+safe re-check runs — and when it can't, the report says *why* (e.g. "blocked by
+policy") instead of silently skipping. Safe re-checks (`safe_active`) run even in
+fast mode; riskier `controlled_validation` checks need a validating policy
+(deep / redteam / lab / purple).
+
+The report includes a **Validation status** table, **Validated findings**,
+**Unvalidated findings**, and **Tests not performed (blocked)** sections.
+
+## Attack-path confidence
+
+Each attack-path step is tagged **CONFIRMED** (independently validated),
+**ASSUMED** (detected, plausible but unproven), or **UNVALIDATED** (checked or
+blocked). Each path reports an overall confidence (CONFIRMED / PARTIAL / ASSUMED)
+plus confirmed-step and unvalidated-assumption counts — so a report never
+presents a hypothetical chain as a confirmed compromise.
+
+## Purple team — detection verification
+
+```bash
+python3 vulnscan.py target --profile purple --mode deep --yes
+python3 vulnscan.py target --profile purple --telemetry siem_export.json --yes
+```
+Maps executed test activity → expected telemetry / MITRE, correlates with your
+SIEM/EDR/IDS export, and reports detection rate + gaps + recommended rules. With
+no telemetry supplied, everything is reported as an unverified gap (honest).
+
+## Resume / checkpointing
+
+Progress is checkpointed to `~/.cache/vulnscan/scans/<scan-id>.json` (the CLI
+prints the scan-id). Resume without rescanning:
+```bash
+python3 vulnscan.py --resume SCAN-YYYYMMDD-HHMMSS-xxxx
+```
+
+## Availability & resilience (safe, passive)
+
+For web/API/recon targets the engine passively inspects response headers for
+rate-limiting, WAF/CDN edge protection, and amplification surface. This is **not**
+a DoS tool — there is no flooding or load generation.
+
 ## Plugins (extend without touching core)
 
 Drop a `plugins/*.py` defining `register(reg)` (see `plugins/README.md`). Loaded

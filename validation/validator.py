@@ -61,43 +61,39 @@ def _validate_missing_header(f) -> str:
     except Exception:
         return "manual"
     if name not in headers:
-        conf.mark_validated(f, f"'{name}' absent on re-check")
-        return "validated"
-    conf.mark_not_exploitable(f, f"'{name}' present on re-check (likely fixed)")
+        return ("validated", f"'{name}' absent on re-check")
     f.status = "fixed"
-    return "not_exploitable"
+    return ("not_exploitable", f"'{name}' present on re-check (likely fixed)")
 
 
-def _validate_reflection(f) -> str:
+def _validate_reflection(f) -> tuple:
     """Confirm an input is reflected unescaped (XSS indicator) with a benign marker."""
     from urllib.parse import urljoin
     url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
     marker = "vscnVALz991"
     try:
         _, _, body, _ = http_get(urljoin(url, f"?q={marker}"))
-    except Exception:
-        return "manual"
+    except Exception as e:
+        return ("error", str(e)[:80])
     if marker in body:
-        conf.mark_validated(f, "benign marker reflected unescaped (verify output context manually)")
-        return "validated"
-    return "manual"
+        return ("validated", "benign marker reflected unescaped (verify output context manually)")
+    return ("not_validated", "benign marker not reflected on re-check")
 
 
-def _validate_dir_listing(f) -> str:
+def _validate_dir_listing(f) -> tuple:
     """Confirm a directory index is actually served."""
     url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
     try:
         status, _, body, _ = http_get(url)
-    except Exception:
-        return "manual"
+    except Exception as e:
+        return ("error", str(e)[:80])
     low = body.lower()
     if status == 200 and ("index of /" in low or "<title>directory listing" in low):
-        conf.mark_validated(f, "directory index served")
-        return "validated"
-    return "manual"
+        return ("validated", "directory index served")
+    return ("not_validated", "no directory index served on re-check")
 
 
-def _validate_cors(f) -> str:
+def _validate_cors(f) -> tuple:
     """Confirm the API reflects an arbitrary Origin with credentials (safe GET)."""
     import urllib.request
     url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
@@ -106,37 +102,33 @@ def _validate_cors(f) -> str:
     try:
         with urllib.request.urlopen(req, timeout=12) as r:
             h = {k.lower(): v for k, v in r.headers.items()}
-    except Exception:
-        return "manual"
+    except Exception as e:
+        return ("error", str(e)[:80])
     acao = h.get("access-control-allow-origin", "")
     acac = h.get("access-control-allow-credentials", "").lower()
     if acao == probe and acac == "true":
-        conf.mark_validated(f, "arbitrary Origin reflected with credentials")
-        return "validated"
+        return ("validated", "arbitrary Origin reflected with credentials")
     if acao in ("*", "") and acac != "true":
-        conf.mark_not_exploitable(f, "no credentialed cross-origin reflection on re-check")
-        return "not_exploitable"
-    return "manual"
+        return ("not_exploitable", "no credentialed cross-origin reflection on re-check")
+    return ("not_validated", "CORS not confirmed exploitable on re-check")
 
 
-def _validate_cookie(f) -> str:
+def _validate_cookie(f) -> tuple:
     """Re-fetch and confirm the Set-Cookie really lacks Secure/HttpOnly/SameSite."""
     url = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
     try:
         _, headers, _, _ = http_get(url)
-    except Exception:
-        return "manual"
+    except Exception as e:
+        return ("error", str(e)[:80])
     sc = headers.get("set-cookie", "")
     if not sc:
-        return "manual"
+        return ("not_validated", "no Set-Cookie on re-check")
     low = sc.lower()
     missing = [x for x in ("secure", "httponly", "samesite") if x not in low]
     if missing:
-        conf.mark_validated(f, "Set-Cookie missing: " + ", ".join(missing))
-        return "validated"
-    conf.mark_not_exploitable(f, "cookie now has Secure/HttpOnly/SameSite")
+        return ("validated", "Set-Cookie missing: " + ", ".join(missing))
     f.status = "fixed"
-    return "not_exploitable"
+    return ("not_exploitable", "cookie now has Secure/HttpOnly/SameSite")
 
 
 register("web.header", _validate_missing_header)
@@ -146,40 +138,85 @@ register("api.cors", _validate_cors)
 register("web.cookie", _validate_cookie)
 
 
-# ---------------------------------------------------------------------------
-def validate(findings, policy, coverage=None) -> dict:
+# result-code -> (validation_state, confidence)
+_RESULT_STATE = {
+    "validated": ("validated", "confirmed"),
+    "not_exploitable": ("not_exploitable", "high_confidence"),
+    "not_validated": ("not_validated", None),
+    "error": ("error", None),
+}
+
+
+def validate(findings, policy, coverage=None, context: dict | None = None) -> dict:
     """
-    Run safe validators over findings IF the policy permits validation.
-    Returns counts and annotates findings in place.
+    Intelligent, policy-gated validation. For each finding with a registered
+    capability, the registry decides run/blocked_by_* based on policy + context;
+    permitted checks run and set a precise validation state with structured,
+    timestamped evidence. Nothing here exploits — checks only re-observe facts.
     """
-    stats = {"validated": 0, "not_exploitable": 0, "manual": 0, "skipped": 0}
-    allowed = policy.allows_level("validation")
+    from . import registry
+    stats = {"validated": 0, "not_exploitable": 0, "not_validated": 0,
+             "manual_validation_required": 0, "blocked_by_policy": 0,
+             "blocked_by_authentication": 0, "blocked_by_missing_dependency": 0,
+             "blocked_by_scope": 0, "error": 0, "selected": 0}
+    context = context or {}
+    ran_any = False
+
     for f in findings:
+        cap = registry.capability_for(f.id)
         fn = _validator_for(f.id)
-        if fn is None:
+        if cap is None and fn is None:
             continue
-        if not allowed:
-            conf.mark_manual(f)
-            stats["manual"] += 1
+        stats["selected"] += 1
+
+        # capability-driven decision (falls back to a safe default if metadata missing)
+        if cap is not None:
+            decision = registry.decide(cap, policy, context)
+            tool = cap.id
+        else:
+            decision = "run" if policy.allows_level("validation") else "blocked_by_policy"
+            tool = "builtin"
+
+        if decision != "run":
+            reason = {
+                "blocked_by_policy": "validation level not permitted by the active policy",
+                "blocked_by_authentication": "requires a test account/credentials (not supplied)",
+                "blocked_by_missing_dependency": "a required tool is not installed",
+                "blocked_by_scope": "asset is out of authorized scope",
+            }.get(decision, decision)
+            f.set_validation(decision, tool=tool, test=(cap.id if cap else f.id), reason=reason)
+            stats[decision] = stats.get(decision, 0) + 1
             continue
+
+        if fn is None:  # capability declared but no checker wired -> manual
+            f.set_validation("manual_validation_required", tool=tool,
+                             test=(cap.id if cap else f.id),
+                             reason="no automated checker; manual validation required")
+            stats["manual_validation_required"] += 1
+            continue
+
+        ran_any = True
         try:
             result = fn(f)
-        except Exception:
-            result = "manual"
-        if result == "validated":
-            stats["validated"] += 1
-        elif result == "not_exploitable":
-            stats["not_exploitable"] += 1
-        elif result == "manual":
-            conf.mark_manual(f)
-            stats["manual"] += 1
-        else:
-            stats["skipped"] += 1
+        except Exception as e:
+            result = ("error", str(e)[:80])
+        code, detail = result if isinstance(result, tuple) else (result, "")
+        if code == "manual":
+            f.set_validation("manual_validation_required", tool=tool,
+                             test=(cap.id if cap else f.id), reason=detail or "manual check needed")
+            stats["manual_validation_required"] += 1
+            continue
+        state, confd = _RESULT_STATE.get(code, ("manual_validation_required", None))
+        f.set_validation(state, tool=tool, tool_version="builtin",
+                         test=(cap.id if cap else f.id), reason=code, detail=detail, confidence=confd)
+        stats[state] = stats.get(state, 0) + 1
+
     if coverage is not None:
-        if allowed:
-            coverage.ran("validation", detail=f"validated={stats['validated']} "
-                                              f"not_exploitable={stats['not_exploitable']}")
-        else:
+        if ran_any:
+            coverage.ran("validation", detail=(f"validated={stats['validated']} "
+                                               f"not_validated={stats['not_validated']} "
+                                               f"blocked={stats['blocked_by_policy']}"))
+        elif stats["selected"]:
             coverage.skipped("validation", "policy_disallowed",
-                             "validation level not permitted by policy")
+                             "validation checks were selected but blocked by policy/context")
     return stats

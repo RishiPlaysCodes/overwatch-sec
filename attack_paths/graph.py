@@ -118,6 +118,23 @@ class Graph:
         return results
 
 
+# validation state -> attack-path step confidence (spec §8/§31)
+_CONFIRMED = {"validated", "exploitable"}
+_UNVALIDATED = {"not_validated", "not_exploitable", "false_positive", "manual_validation_required",
+                "blocked_by_policy", "blocked_by_scope", "blocked_by_authentication",
+                "blocked_by_missing_dependency", "error", "validation_pending"}
+
+
+def step_confidence(validation_state: str) -> str:
+    """A path step is CONFIRMED (independently validated), ASSUMED (detected/likely,
+    plausible but unproven), or UNVALIDATED (checked-and-not-confirmed / blocked)."""
+    if validation_state in _CONFIRMED:
+        return "CONFIRMED"
+    if validation_state in _UNVALIDATED:
+        return "UNVALIDATED"
+    return "ASSUMED"   # detected / likely / unknown
+
+
 def build(findings, target: str) -> Graph:
     g = Graph()
     g.add_node(Node("internet", "entry", "Internet"))
@@ -138,7 +155,8 @@ def build(findings, target: str) -> Graph:
         fid_node = f"finding:{i}:{f.id}"
         g.add_node(Node(fid_node, "finding", f.title,
                         {"severity": f.severity, "kev": f.kev, "cvss": f.cvss,
-                         "id": f.id, "mitre": list(f.mitre), "tactic": tactic_of(f.id)}))
+                         "id": f.id, "mitre": list(f.mitre), "tactic": tactic_of(f.id),
+                         "validation": f.validation, "step_confidence": step_confidence(f.validation)}))
         g.add_edge(assets[a], fid_node, "has")
         obj = _objective_for(f.id)
         if obj:
@@ -168,11 +186,32 @@ def _score_path(g: Graph, path: list[str]) -> float:
     return round(min(base + kev_bonus + cvss_bonus + crit_bonus + lateral_bonus + chain_bonus, 100), 1)
 
 
+def _path_confidence(steps: list[dict]) -> dict:
+    """Aggregate per-step confidence into a path-level verdict.
+      CONFIRMED  = every step independently validated
+      PARTIAL    = at least one confirmed, others assumed/unvalidated
+      ASSUMED    = plausible but no step validated
+    plus counts of confirmed steps and unvalidated assumptions.
+    """
+    confs = [s.get("confidence", "ASSUMED") for s in steps]
+    confirmed = sum(1 for c in confs if c == "CONFIRMED")
+    assumptions = sum(1 for c in confs if c in ("ASSUMED", "UNVALIDATED"))
+    if steps and confirmed == len(steps):
+        label = "CONFIRMED"
+    elif confirmed:
+        label = "PARTIAL"
+    else:
+        label = "ASSUMED"
+    return {"label": label, "confirmed": confirmed, "assumptions": assumptions}
+
+
 def build_paths(findings, target: str) -> list[dict]:
     """
     Report/test-compatible view. Returns entry->objective paths, richest first,
     plus per-asset single-step observations for findings without an objective.
-    Keys: asset, entry(bool), length, risk_score, steps, chain, objective.
+    Keys: asset, entry, length, risk_score, steps, chain, objective,
+    path_confidence, confirmed_steps, unvalidated_assumptions.
+    Each step carries a confidence: CONFIRMED / ASSUMED / UNVALIDATED.
     """
     g = build(findings, target)
     raw = g.paths_to_objectives("internet")
@@ -191,16 +230,19 @@ def build_paths(findings, target: str) -> list[dict]:
         seen_sigs.add(sig)
         steps = [{"tactic": fn.data.get("tactic", ""), "technique": (fn.data.get("mitre") or [""])[0],
                   "finding": fn.label, "id": fn.data.get("id"), "severity": fn.data.get("severity"),
-                  "kev": fn.data.get("kev")} for fn in fnodes]
+                  "kev": fn.data.get("kev"), "validation": fn.data.get("validation", "detected"),
+                  "confidence": fn.data.get("step_confidence", "ASSUMED")} for fn in fnodes]
         chain_labels = ["Internet"]
         for n in path[1:]:
             node = g.nodes[n]
             if node.kind == "asset":
                 chain_labels.append(f"asset: {node.label}")
             elif node.kind == "finding":
-                chain_labels.append(f"{node.data.get('tactic','')}: {node.label}")
+                conf = node.data.get("step_confidence", "ASSUMED")
+                chain_labels.append(f"[{conf}] {node.data.get('tactic','')}: {node.label}")
             elif node.kind == "objective":
                 chain_labels.append(f"🎯 {node.label}")
+        pc = _path_confidence(steps)
         out.append({
             "asset": anodes[0].label if anodes else target,
             "entry": True,
@@ -210,6 +252,9 @@ def build_paths(findings, target: str) -> list[dict]:
             "chain": " -> ".join(chain_labels),
             "objective": onodes[-1].label if onodes else "",
             "multi_asset": len(anodes) > 1,
+            "path_confidence": pc["label"],
+            "confirmed_steps": pc["confirmed"],
+            "unvalidated_assumptions": pc["assumptions"],
         })
 
     # per-asset fallback observations for findings that reached no objective
@@ -223,15 +268,19 @@ def build_paths(findings, target: str) -> list[dict]:
         ordered = sorted(fs, key=lambda f: TACTIC_ORDER.index(tactic_of(f.id))
                          if tactic_of(f.id) in TACTIC_ORDER else 99)
         steps = [{"tactic": tactic_of(f.id), "technique": (f.mitre or [""])[0],
-                  "finding": f.title, "id": f.id, "severity": f.severity, "kev": f.kev} for f in ordered]
-        chain = ["Internet", f"asset: {asset}"] + [f"{s['tactic']}: {s['finding']}" for s in steps]
+                  "finding": f.title, "id": f.id, "severity": f.severity, "kev": f.kev,
+                  "validation": f.validation, "confidence": step_confidence(f.validation)} for f in ordered]
+        chain = ["Internet", f"asset: {asset}"] + [f"[{s['confidence']}] {s['tactic']}: {s['finding']}" for s in steps]
         base = max(_SEV_W.get(f.severity, 1) for f in fs)
         kev = 25 if any(f.kev for f in fs) else 0
         cvss = max([(f.cvss or 0) for f in fs]) * 1.5
+        pc = _path_confidence(steps)
         out.append({"asset": asset, "entry": any(s["tactic"] in ("initial-access", "execution", "reconnaissance")
                                                   for s in steps),
                     "length": len(steps), "risk_score": round(min(base + kev + cvss, 100), 1),
-                    "steps": steps, "chain": " -> ".join(chain), "objective": "", "multi_asset": False})
+                    "steps": steps, "chain": " -> ".join(chain), "objective": "", "multi_asset": False,
+                    "path_confidence": pc["label"], "confirmed_steps": pc["confirmed"],
+                    "unvalidated_assumptions": pc["assumptions"]})
 
     out.sort(key=lambda p: (0 if p.get("objective") else 1, -p["risk_score"], -p["length"]))
     return out

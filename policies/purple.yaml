@@ -1,0 +1,21 @@
+# Purple-team policy — authorized detection verification.
+# Validation is allowed so real (safe) test activity is generated for the
+# defenders to detect. Intrusive/destructive remain OFF.
+authorization: authorized_pentest
+
+testing:
+  passive: true
+  safe_active: true
+  validation: true
+  intrusive: false
+  destructive: false
+
+dos:
+  enabled: false
+
+social_engineering:
+  enabled: false
+
+performance:
+  workers: 8
+  timeout: 30

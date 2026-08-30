@@ -33,6 +33,7 @@ except Exception:
 DEFAULT_PROFILES = {
     "bugbounty": {"mode": "fast", "scanners": ["recon", "web", "api"], "scope_required": True},
     "redteam":   {"mode": "deep", "scanners": ["recon", "web", "network", "cloud"], "scope_required": True},
+    "purple":    {"mode": "deep", "scanners": ["web", "api", "network"]},
     "enterprise":{"mode": "deep", "scanners": ["recon", "web", "network", "cloud", "code", "container"]},
     "web":       {"mode": "fast", "scanners": ["web", "api"]},
     "mobile":    {"mode": "fast", "scanners": ["mobile"]},

@@ -135,10 +135,15 @@ def write_markdown(assessment, path: str) -> str:
     L.append("## Attack paths\n")
     if not assessment.attack_paths:
         L.append("_No multi-step attack paths correlated._\n")
+    L.append("_Each step is tagged **CONFIRMED** (independently validated), **ASSUMED** "
+             "(detected, plausible but unproven), or **UNVALIDATED** (checked/blocked)._\n")
     for i, p in enumerate(assessment.attack_paths[:10], 1):
         obj = f" → 🎯 **{p['objective']}**" if p.get("objective") else ""
         multi = " (multi-asset / lateral)" if p.get("multi_asset") else ""
-        L.append(f"**Path {i}** — asset `{p['asset']}` — risk **{p['risk_score']}/100**{obj}{multi}")
+        pc = p.get("path_confidence", "ASSUMED")
+        conf = (f" — path confidence **{pc}** "
+                f"({p.get('confirmed_steps', 0)} confirmed, {p.get('unvalidated_assumptions', 0)} unvalidated)")
+        L.append(f"**Path {i}** — asset `{p['asset']}` — risk **{p['risk_score']}/100**{obj}{multi}{conf}")
         L.append("")
         L.append("```")
         L.append(p["chain"])
@@ -156,6 +161,57 @@ def write_markdown(assessment, path: str) -> str:
             L.append("")
     except Exception:
         pass
+
+    # ---- validation status breakdown -------------------------------------
+    vcounts: dict = {}
+    for f in fs:
+        vcounts[f.validation] = vcounts.get(f.validation, 0) + 1
+    if vcounts:
+        L.append("## Validation status\n")
+        L.append("| State | Count |\n|---|---|")
+        for st in sorted(vcounts, key=lambda x: -vcounts[x]):
+            L.append(f"| {st} | {vcounts[st]} |")
+        L.append("")
+        validated = [f for f in fs if f.validation in ("validated", "exploitable")]
+        unvalidated = [f for f in fs if f.validation in ("detected", "likely", "not_validated",
+                                                          "manual_validation_required", "unknown")]
+        blocked = [f for f in fs if f.validation.startswith("blocked_by") or f.validation == "error"]
+        if validated:
+            L.append("### Validated findings\n")
+            for f in validated:
+                ve = f.validation_evidence or {}
+                L.append(f"- **[{f.severity.upper()}] {f.title}** — `{f.asset}`"
+                         + (f"  _(via {ve.get('tool')}, {ve.get('timestamp')})_" if ve.get("tool") else ""))
+            L.append("")
+        if unvalidated:
+            L.append("### Unvalidated findings (detected — manual/again required)\n")
+            for f in unvalidated:
+                L.append(f"- [{f.severity.upper()}] {f.title} — `{f.asset}` ({f.validation})")
+            L.append("")
+        if blocked:
+            L.append("### Tests not performed (blocked)\n")
+            for f in blocked:
+                ve = f.validation_evidence or {}
+                L.append(f"- [{f.severity.upper()}] {f.title} — `{f.asset}`: {f.validation}"
+                         + (f" ({ve.get('reason')})" if ve.get("reason") else ""))
+            L.append("")
+
+    # ---- detection coverage (purple team) --------------------------------
+    if assessment.detection:
+        ds = assessment.detection.get("summary", {})
+        L.append("## Detection coverage (purple team)\n")
+        L.append(f"- Detection rate: **{ds.get('detection_rate', 0)}%** "
+                 f"({ds.get('detected', 0)}/{ds.get('techniques_considered', 0)} techniques, "
+                 f"{ds.get('gaps', 0)} gap(s))")
+        L.append(f"- {ds.get('note', '')}")
+        gaps = [r for r in assessment.detection.get("rows", []) if r.get("detection_gap")]
+        if gaps:
+            L.append("\n**Detection gaps:**")
+            for r in gaps[:12]:
+                L.append(f"- [{r.get('technique') or 'n/a'}] {r['finding_id']} — expected: "
+                         f"{r['expected_telemetry']}" + (f"; recommend: {r['recommendation']}"
+                                                          if r.get('recommendation') else ""))
+        L.append("")
 
     L.append("## Findings\n")
     if not fs:
@@ -176,6 +232,11 @@ def write_markdown(assessment, path: str) -> str:
             meta += f"  |  **ATT&CK:** {', '.join(f.mitre)}"
         L.append(meta)
         L.append(f"- **Evidence:** `{f.evidence}`")
+        if f.validation_evidence:
+            ve = f.validation_evidence
+            bits = [f"{k}={ve[k]}" for k in ("tool", "test", "reason", "timestamp") if ve.get(k)]
+            if bits:
+                L.append(f"- **Validation evidence:** {', '.join(bits)}")
         L.append("")
         if f.description:
             L.append(f"**What it is:** {f.description}\n")

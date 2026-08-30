@@ -180,6 +180,7 @@ def main() -> int:
     ap.add_argument("--mark", default=None,
                     help="record a triage decision: 'FINGERPRINT=STATUS[:note]' (needs --triage-file)")
     ap.add_argument("--no-plugins", action="store_true", help="disable plugin loading")
+    ap.add_argument("--resume", default=None, help="resume a previous scan by scan-id (no rescanning)")
     # CI gating (exit non-zero to fail a pipeline)
     ap.add_argument("--fail-on", dest="fail_on", default=None,
                     choices=["critical", "high", "medium", "low", "info"],
@@ -195,6 +196,8 @@ def main() -> int:
                     help="authorized host/cloud data export (JSON) for threat-indicator detection")
     ap.add_argument("--ioc-file", dest="ioc_file", default=None,
                     help="IOC feed (JSON: hashes/domains/ips) used with --threat-input")
+    ap.add_argument("--telemetry", dest="telemetry_file", default=None,
+                    help="SIEM/EDR/IDS detections export (JSON) for purple-team detection verification")
     # meta
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets/CI)")
     ap.add_argument("--dry-run", action="store_true", help="show the planned pipeline, run nothing")
@@ -219,6 +222,23 @@ def main() -> int:
         return cmd_list_capabilities()
     if args.update or args.check_updates:
         return cmd_update()
+
+    # resume a previous scan from its checkpoint (no rescanning)
+    if args.resume:
+        from core.orchestrator import resume_scan
+        from reporting import report as report_mod
+        a = resume_scan(args.resume)
+        if a is None:
+            print(f"No checkpoint found for scan-id '{args.resume}'."); return 2
+        outdir = args.out or f"report-resume-{args.resume}"
+        paths = report_mod.write_all(a, outdir, formats=tuple(f.strip() for f in args.formats.split(",") if f.strip()))
+        print("\n" + a.coverage.render())
+        s = report_mod.summarize(a)
+        print(f"\nRESUMED {args.resume}: score {s['security_score']}/100 | findings {s['total']} | "
+              f"attack-paths {s['attack_paths']}")
+        for fmt, p in paths.items():
+            print(f"  report.{fmt}: {p}")
+        return 0
 
     # record a triage decision and exit
     if args.mark:
@@ -297,7 +317,8 @@ def main() -> int:
         target, profile=profile, mode=mode, policy=policy,
         outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind,
         triage_store=triage_store, load_plugins=not args.no_plugins,
-        identity_file=args.identity_file, threat_file=args.threat_file, ioc_file=args.ioc_file)
+        identity_file=args.identity_file, threat_file=args.threat_file, ioc_file=args.ioc_file,
+        telemetry_file=args.telemetry_file)
 
     # reports
     from reporting import report as report_mod
@@ -313,6 +334,14 @@ def main() -> int:
           f"attack-paths {s['attack_paths']}")
     if assessment.out_of_scope_dropped:
         print(f"{C.YEL}Out-of-scope assets dropped: {len(assessment.out_of_scope_dropped)}{C.RESET}")
+    if assessment.detection:
+        try:
+            from purple.verification import render as _drender
+            print("\n" + _drender(assessment.detection))
+        except Exception:
+            ds = assessment.detection.get("summary", {})
+            print(f"{C.MAG}Detection verification: {ds.get('detected', 0)}/"
+                  f"{ds.get('techniques_considered', 0)} detected, {ds.get('gaps', 0)} gap(s){C.RESET}")
     for fmt, p in paths.items():
         print(f"  report.{fmt}: {p}")
 

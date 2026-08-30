@@ -62,6 +62,15 @@ correlates attack paths, and produces industry-grade reports.
 | `reporting.sarif` | SARIF 2.1.0 export (GitHub Code Scanning) + `gate()` CI fail thresholds (severity / KEV / new-vs-baseline). |
 | `reporting.graph_html` | Interactive Cytoscape.js attack graph (`attack-graph.html`) — click-to-drill-down + severity filter. |
 | `connectors.*` | Offline parsers: BloodHound→identity graph, Prowler→findings, ScoutSuite→threat telemetry; `detect_and_load()` auto-sniffs. |
+| `validation.registry` | Machine-readable **validation-capability registry** (per test: target types, prerequisites, safety level, evidence, cleanup) + context-aware `decide()` → run / blocked_by_policy/scope/authentication/missing_dependency. |
+| `validation.resilience` | Safe, passive **availability & resilience** checks (rate-limit / WAF-CDN / amplification via headers). No flooding. |
+| `purple.verification` | **Detection verification**: executed activity → expected telemetry/MITRE, correlated with a SIEM/EDR/IDS export → detection rate + gaps + recommended rules. |
+| `core.checkpoint` | **Resume/checkpointing**: per-stage state + incremental findings persistence; `resume_scan()` rebuilds without rescanning. |
+
+**Validation lifecycle:** findings carry a validation state + structured
+timestamped evidence (`Finding.set_validation`). Attack-path steps are tagged
+CONFIRMED / ASSUMED / UNVALIDATED, and each path gets an aggregate confidence.
+The engine never claims exploitation it didn't safely validate.
 
 ## Design decisions
 
