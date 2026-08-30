@@ -40,8 +40,8 @@ jobs:
 
       - name: Commit refreshed feeds
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name  "Rishi Gurdatta"
+          git config user.email "245751793+RishiPlaysCodes@users.noreply.github.com"
           git add data/
           if git diff --staged --quiet; then
             echo "No feed changes."
