@@ -31,10 +31,11 @@ import test_phase_final
 import test_program
 import test_knowledge
 import test_analyzers
+import test_oast
 
 UNIT_MODULES = [test_scope, test_policy, test_detector_findings, test_attack_paths,
                 test_phase2, test_phase3, test_phase4, test_phase_pt, test_phase_res,
-                test_phase_final, test_program, test_knowledge, test_analyzers]
+                test_phase_final, test_program, test_knowledge, test_analyzers, test_oast]
 
 
 def _run_zero_arg_tests(mod):

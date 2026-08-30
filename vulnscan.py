@@ -110,6 +110,17 @@ def cmd_gap_analysis() -> int:
     return 0
 
 
+def cmd_capability_matrix(as_json: bool = False) -> int:
+    from core import capability_matrix
+    if as_json:
+        import json
+        print(json.dumps({"matrix": capability_matrix.matrix(),
+                          "summary": capability_matrix.summary()}, indent=2))
+    else:
+        print(capability_matrix.render())
+    return 0
+
+
 # map a detected target kind -> the install.sh group that provides its tools
 KIND_INSTALL_GROUP = {
     "web": "web", "api": "web", "recon": "recon", "network": "network",
@@ -318,6 +329,11 @@ def main() -> int:
     ap.add_argument("--gap-analysis", dest="gap_analysis", action="store_true",
                     help="show the capability/gap matrix derived from code (knowledge→detection→"
                          "validation→checker), incl. honest manual/uncovered gaps")
+    ap.add_argument("--capability-matrix", dest="capability_matrix", action="store_true",
+                    help="show the full capability matrix with per-capability status "
+                         "(IMPLEMENTED_AND_TESTED / REQUIRES_* / INTENTIONALLY_BLOCKED_FOR_SAFETY / ...)")
+    ap.add_argument("--json", dest="as_json", action="store_true",
+                    help="emit machine-readable JSON (with --capability-matrix)")
     ap.add_argument("--install", nargs="*", metavar="GROUP", default=None,
                     help="install all external scanners in one shot, then exit "
                          "(optionally limit to groups: recon web network mobile cloud code container)")
@@ -343,6 +359,8 @@ def main() -> int:
         return cmd_list_knowledge()
     if args.gap_analysis:
         return cmd_gap_analysis()
+    if args.capability_matrix:
+        return cmd_capability_matrix(as_json=args.as_json)
     if args.install is not None:
         return cmd_install(args.install)
     if args.update or args.check_updates:

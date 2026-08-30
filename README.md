@@ -21,8 +21,18 @@ python3 vulnscan.py --list-profiles | --list-tools | --dry-run | --version
 python3 vulnscan.py --install                # one-shot: install all external scanners
 python3 vulnscan.py --list-knowledge         # knowledge catalog + per-domain coverage
 python3 vulnscan.py --list-capabilities      # validation capabilities (risk + prerequisites)
-python3 vulnscan.py --gap-analysis           # code-derived capability/gap matrix (honest)
+python3 vulnscan.py --gap-analysis           # code-derived knowledge→detection→validation gaps
+python3 vulnscan.py --capability-matrix      # per-capability status (proves what it can/can't do)
+python3 vulnscan.py --capability-matrix --json   # machine-readable
 ```
+
+**Honest capability matrix:** `--capability-matrix` classifies every capability
+with an exact status — `IMPLEMENTED_AND_TESTED`, `REQUIRES_AUTHORIZED_CREDENTIALS`,
+`REQUIRES_TARGET_SPECIFIC_CONFIGURATION`, `REQUIRES_SPECIAL_HARDWARE`,
+`INTENTIONALLY_BLOCKED_FOR_SAFETY`, `NOT_APPLICABLE`, … — with **zero unexplained
+gaps**. Blind classes (e.g. SSRF) are proven safely via an out-of-band collaborator
+(`validation/oast.py`) under an intrusive-authorized policy, or honestly marked
+manual — never auto-exploited.
 
 **Knowledge & coverage:** 133 vulnerability definitions across 22 attack families
 (CWE/OWASP/CAPEC + attack scenario + fix), evidence-graded threat classification,

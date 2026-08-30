@@ -102,6 +102,11 @@ def write_json(assessment, path: str) -> str:
         data["coverage_by_domain"] = _kn.coverage_by_domain(assessment.findings)
     except Exception:
         pass
+    try:
+        from core import capability_matrix as _cm
+        data["capability_matrix"] = {"summary": _cm.summary(), "rows": _cm.matrix()}
+    except Exception:
+        pass
     with open(path, "w") as fh:
         json.dump(data, fh, indent=2)
     return path

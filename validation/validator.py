@@ -173,12 +173,42 @@ def _validate_open_redirect(f) -> tuple:
     return ("not_validated", "no off-site redirect reflected in Location on re-check")
 
 
+# context made available to validators that need it (e.g. an OAST collaborator).
+_ACTIVE_CONTEXT: dict = {}
+
+
+def _validate_ssrf(f) -> tuple:
+    """
+    Controlled SSRF proof via an out-of-band collaborator (spec §38). Only runs
+    when the policy permits intrusive validation AND a collaborator is supplied in
+    the context; otherwise returns MANUAL (never a fabricated 'validated'). Uses a
+    benign unique marker and a single bounded request — non-destructive.
+    """
+    ctx = _ACTIVE_CONTEXT or {}
+    collab = ctx.get("collaborator")
+    if collab is None:
+        return ("manual", "blind SSRF proof requires an OAST collaborator (not configured)")
+    # determine target URL + injectable parameter from the finding
+    target = f.asset if f.asset.startswith("http") else f"https://{f.asset}"
+    param = f.component or ""
+    if not param:
+        import re
+        m = re.search(r"parameter[^\w]*['\"]?(\w+)", f.evidence or "", re.I)
+        param = m.group(1) if m else "url"
+    from . import oast
+    state, detail, ev = oast.prove_ssrf(target, param, collab)
+    if ev:
+        f.validation_evidence.update({"oast": ev})
+    return (state, detail)
+
+
 register("web.header", _validate_missing_header)
 register("web.xss.reflected", _validate_reflection)
 register("recon.dir_listing", _validate_dir_listing)
 register("api.cors", _validate_cors)
 register("web.cookie", _validate_cookie)
 register("web.open_redirect", _validate_open_redirect)
+register("web.ssrf", _validate_ssrf)
 
 
 # result-code -> (validation_state, confidence)
@@ -204,6 +234,8 @@ def validate(findings, policy, coverage=None, context: dict | None = None) -> di
              "blocked_by_scope": 0, "error": 0, "selected": 0,
              "findings_total": len(findings)}
     context = context or {}
+    global _ACTIVE_CONTEXT
+    _ACTIVE_CONTEXT = context      # expose context (e.g. OAST collaborator) to validators
     ran_any = False
 
     for f in findings:

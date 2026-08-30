@@ -4,11 +4,13 @@ This document is an **honest, code-verified** audit of what the platform actuall
 does — not what documentation claims. Every row was checked against the real
 execution path (CLI → orchestrator → capability selection → scanner/validator →
 finding → correlation → report) and against the test suite (`python3 tests/run_tests.py`,
-currently **103/103 passing**, plus the lab-driven pipeline test).
+currently **108/108 passing**, plus the lab-driven pipeline test).
 
-> Measured snapshot: **133 KB definitions / 22 families**, **31 validation
-> capabilities** (6 automated safe checkers, 25 honest MANUAL/gated), CI/CD + IaC
-> analyzers running dependency-free. Run `--gap-analysis` for the live matrix.
+> Measured snapshot: **133 KB definitions / 22 families**, **32 validation
+> capabilities** (7 automated safe checkers incl. OAST SSRF proof, rest honest
+> MANUAL/gated), CI/CD + IaC analyzers dependency-free, and a **structured
+> capability matrix** (34 capabilities, 0 unexplained gaps). Run
+> `--capability-matrix` / `--gap-analysis` for the live, code-derived view.
 
 Status legend:
 
@@ -94,6 +96,8 @@ Status legend:
 | Reports: md/json/csv/html/sarif/pdf + bundle | ✅ | `reporting/*`; tested |
 | **Measurable coverage**: stages, tools, ATT&CK, **validation coverage**, **per-domain matrix** | ✅ | `core/coverage.py` + `core/knowledge.coverage_by_domain`; in report + console + json |
 | **Automatic gap detection** — machine-readable capability matrix (knowledge→detection→validation→checker) | ✅ | `core/gap_analysis.py` + `--gap-analysis`; flags KB-without-detection, capability-without-checker (MANUAL), orphan validators. Prevents silent incompleteness |
+| **Structured capability matrix** (per-capability status vocabulary) | ✅ | `core/capability_matrix.py` + `--capability-matrix [--json]`; 34 capabilities, **0 unexplained gaps**, embedded in report JSON |
+| **Controlled OAST safe-proof** (blind SSRF etc.) | ✅ | `validation/oast.py` (LocalCollaborator lab-tested; ExternalCollaborator adapter boundary). SSRF validator proves via out-of-band callback under intrusive policy + collaborator; else honest MANUAL. Never auto-exploits |
 | Security score + qualitative posture | ✅ | `reporting/report.py`; config-only findings don't fake attack paths |
 
 ## Platform hardening & tests
