@@ -1,7 +1,13 @@
 # Usage
 
+# vulnscan — Usage Guide
+
 > Authorized use only. Assess systems you own or are explicitly permitted to
 > test. Safe by default — detection, recon and controlled validation only.
+
+> 📖 See also: the [README](README.md) (full feature tour) and the complete
+> [CLI reference](docs/CLI.md) (every flag). Run `python3 vulnscan.py --capability-matrix`
+> to see exactly what the platform can and cannot do.
 
 ## One command
 
