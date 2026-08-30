@@ -87,6 +87,13 @@ def cmd_list_capabilities() -> int:
     for k in kinds:
         tools = [t.name for t in capabilities.for_kind(k)]
         print(f"  {k:12} : {', '.join(tools)}")
+    try:
+        from validation import registry
+        print("\nValidation capabilities (id : risk : requires):")
+        for c in registry.summary():
+            print(f"  {c['id']:28} {c['risk']:20} {', '.join(c['requires'])}")
+    except Exception:
+        pass
     return 0
 
 
@@ -158,7 +165,10 @@ def main() -> int:
     ap.add_argument("--scope", default=None, help="scope file (in-scope assets, one per line)")
     ap.add_argument("--policy", default=None, help="policy YAML file (safety levels)")
     ap.add_argument("--out", default=None, help="output directory")
-    ap.add_argument("--formats", default="md,json,html", help="report formats: md,json,csv,html")
+    ap.add_argument("--formats", default="md,json,html", help="report formats: md,json,csv,html,pdf,sarif")
+    ap.add_argument("--bundle", action="store_true",
+                    help="write a professional report bundle (reports/: executive+technical, "
+                         "json artifacts, evidence/, sarif, pdf)")
     ap.add_argument("--skip", default="", help="comma list of tools to skip")
     ap.add_argument("--deep", action="store_true", help="alias for --mode deep")
     ap.add_argument("--workers", type=int, default=None, help="max concurrent workers")
@@ -175,6 +185,11 @@ def main() -> int:
     # baseline / retest / triage
     ap.add_argument("--compare", default=None, help="compare against an old report.json")
     ap.add_argument("--baseline", action="store_true", help="save this run as the baseline")
+    ap.add_argument("--retest", action="store_true",
+                    help="compare against the saved baseline for this target (auto-located)")
+    ap.add_argument("--load-test", dest="load_test", action="store_true",
+                    help="bounded, LAB-only availability load-test (opt-in; requires lab policy + dos.enabled; "
+                         "hard-capped, rate-limited, abortable — never a DoS/flood)")
     ap.add_argument("--triage-file", dest="triage_file", default=None,
                     help="persistent triage store (fingerprint->status) applied across scans")
     ap.add_argument("--mark", default=None,
@@ -198,6 +213,9 @@ def main() -> int:
                     help="IOC feed (JSON: hashes/domains/ips) used with --threat-input")
     ap.add_argument("--telemetry", dest="telemetry_file", default=None,
                     help="SIEM/EDR/IDS detections export (JSON) for purple-team detection verification")
+    ap.add_argument("--se-input", dest="se_file", default=None,
+                    help="authorized awareness-campaign RESULTS (JSON) for social-engineering analysis "
+                         "(requires social_engineering enabled in policy; analysis only, no sending)")
     # meta
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets/CI)")
     ap.add_argument("--dry-run", action="store_true", help="show the planned pipeline, run nothing")
@@ -318,12 +336,16 @@ def main() -> int:
         outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind,
         triage_store=triage_store, load_plugins=not args.no_plugins,
         identity_file=args.identity_file, threat_file=args.threat_file, ioc_file=args.ioc_file,
-        telemetry_file=args.telemetry_file)
+        telemetry_file=args.telemetry_file, se_file=args.se_file, load_test=args.load_test)
 
     # reports
     from reporting import report as report_mod
     formats = tuple(f.strip() for f in args.formats.split(",") if f.strip())
     paths = report_mod.write_all(assessment, outdir, formats=formats)
+    if args.bundle:
+        from reporting import bundle as bundle_mod
+        bpaths = bundle_mod.write_bundle(assessment, outdir)
+        paths["bundle"] = os.path.join(outdir, "reports")
 
     # console output
     print("\n" + assessment.coverage.render())
@@ -332,8 +354,16 @@ def main() -> int:
           f"crit {s['counts']['critical']} high {s['counts']['high']} med {s['counts']['medium']} "
           f"low {s['counts']['low']} info {s['counts']['info']} | KEV {s['kev_count']} | "
           f"attack-paths {s['attack_paths']}")
+    if assessment.scan_id:
+        print(f"Scan ID: {assessment.scan_id}  (resume with: --resume {assessment.scan_id})")
     if assessment.out_of_scope_dropped:
         print(f"{C.YEL}Out-of-scope assets dropped: {len(assessment.out_of_scope_dropped)}{C.RESET}")
+    if assessment.social:
+        try:
+            from social_engineering.simulation import render as _serender
+            print("\n" + _serender({"metrics": assessment.social}))
+        except Exception:
+            pass
     if assessment.detection:
         try:
             from purple.verification import render as _drender
@@ -345,20 +375,33 @@ def main() -> int:
     for fmt, p in paths.items():
         print(f"  report.{fmt}: {p}")
 
-    # baseline / compare
+    # baseline / compare / retest
     compare_diff = None
-    if args.compare:
+    from core import checkpoint as _ckpt
+    compare_path = args.compare
+    if args.retest and not compare_path:
+        compare_path = _ckpt.find_baseline(target)
+        if not compare_path:
+            print(f"{C.YEL}--retest: no saved baseline for this target yet; "
+                  f"run once with --baseline first.{C.RESET}")
+    if compare_path:
         from reporting import compare as cmp_mod
         try:
-            compare_diff = cmp_mod.compare(args.compare, assessment)
+            compare_diff = cmp_mod.compare(compare_path, assessment)
             print("\n" + cmp_mod.render(compare_diff))
         except Exception as e:
             print(f"compare failed: {e}")
+    # always refresh the target's baseline after a retest so trend continues
+    if args.retest:
+        _ckpt.save_baseline(target, paths.get("json", os.path.join(outdir, "report.json")))
     if args.baseline:
         import shutil
         base = os.path.join(outdir, "baseline.json")
-        shutil.copy(paths.get("json", os.path.join(outdir, "report.json")), base)
-        print(f"  baseline saved: {base}")
+        rep_json = paths.get("json", os.path.join(outdir, "report.json"))
+        shutil.copy(rep_json, base)
+        # also persist to the target's baseline store so --retest can auto-locate it
+        stored = _ckpt.save_baseline(target, rep_json)
+        print(f"  baseline saved: {base}" + (f" (+ retest store: {stored})" if stored else ""))
 
     # CI gating (exit non-zero to fail a pipeline)
     if args.fail_on or args.fail_on_kev or args.fail_on_new:

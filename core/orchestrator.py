@@ -47,6 +47,7 @@ class Assessment:
     out_of_scope_dropped: list = field(default_factory=list)
     plan: dict = field(default_factory=dict)
     detection: dict = field(default_factory=dict)   # purple-team detection verification
+    social: dict = field(default_factory=dict)      # social-engineering simulation metrics
     scan_id: str = ""
 
     def to_dict(self) -> dict:
@@ -62,6 +63,8 @@ class Assessment:
             "attack_paths": self.attack_paths,
             "out_of_scope_dropped": self.out_of_scope_dropped,
             "detection": self.detection,
+            "social": self.social,
+            "scan_id": self.scan_id,
             "coverage": self.coverage.summary() if self.coverage else {},
         }
 
@@ -121,7 +124,8 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         triage_store=None, load_plugins: bool = True,
         identity_file: str | None = None, threat_file: str | None = None,
         ioc_file: str | None = None, telemetry_file: str | None = None,
-        scan_id: str | None = None) -> Assessment:
+        scan_id: str | None = None, se_file: str | None = None,
+        load_test: bool = False) -> Assessment:
     # extensibility: load drop-in plugins before detection/registry use
     if load_plugins:
         try:
@@ -197,6 +201,15 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
             cov.ran("availability_assessment", detail=f"{len(ra)} signal(s)")
         except Exception as e:
             cov.errored("availability_assessment", detail=str(e)[:120])
+        # bounded, opt-in, LAB-only load-test (off by default; refuses unless authorized)
+        if load_test:
+            try:
+                from validation import loadtest
+                lt = loadtest.run(target, policy, opt_in=True)
+                raw.setdefault("findings", []).extend(lt)
+                cov.ran("availability_loadtest", detail=f"{len(lt)} signal(s)")
+            except Exception as e:
+                cov.errored("availability_loadtest", detail=str(e)[:120])
 
     # scope only applies to network-facing targets; local artifacts (code/cloud
     # IaC dir / container image / k8s manifests / mobile files) have no "scope".
@@ -254,6 +267,21 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
             cov.errored("threat_detection", detail=str(e)[:150])
 
     findings = dedupe(findings)
+
+    # authorized social-engineering awareness simulation (analysis only; gated by policy)
+    if se_file:
+        if getattr(policy, "social_engineering", False):
+            try:
+                from social_engineering import simulation
+                se = simulation.load_and_analyze(se_file)
+                findings += se.get("findings", [])
+                assessment.social = se.get("metrics", {})
+                cov.ran("social_engineering", detail=f"human_risk={assessment.social.get('human_risk_score')}")
+            except Exception as e:
+                cov.errored("social_engineering", detail=str(e)[:120])
+        else:
+            cov.skipped("social_engineering", "policy_disallowed",
+                        "enable social_engineering in the policy to include awareness metrics")
 
     cp.store_findings(findings)
     cp.mark("collect", "completed", f"{len(findings)} findings")

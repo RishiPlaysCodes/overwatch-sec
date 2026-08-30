@@ -118,7 +118,7 @@ def finding(fid: str, evidence: str, severity_override: str | None = None) -> di
     The reporter uses these fields directly.
     """
     e = kb.get(fid)
-    return {
+    d = {
         "id": fid,
         "severity": severity_override or e["severity"],
         "title": e["title"],
@@ -129,3 +129,8 @@ def finding(fid: str, evidence: str, severity_override: str | None = None) -> di
         "patch": e["patch"],
         "evidence": evidence,
     }
+    # optional richer fields flow through when present in the KB entry
+    for opt in ("capec", "root_cause", "references"):
+        if e.get(opt):
+            d[opt] = e[opt]
+    return d

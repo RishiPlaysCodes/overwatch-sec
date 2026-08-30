@@ -72,6 +72,19 @@ timestamped evidence (`Finding.set_validation`). Attack-path steps are tagged
 CONFIRMED / ASSUMED / UNVALIDATED, and each path gets an aggregate confidence.
 The engine never claims exploitation it didn't safely validate.
 
+**Final-phase modules:**
+
+| Module | Responsibility |
+|---|---|
+| `scanner_linux` | Linux host audit from an authorized export (SUID/sudo/caps/cron/ssh/pkg CVEs); read-only, offline. |
+| `scanner_windows` | Windows host audit from export (services/SMB/RDP/WinRM/creds/patches); read-only, offline. |
+| `social_engineering.simulation` | Analyze results of an authorized awareness campaign → human-risk metrics. Never sends campaigns or handles real credentials; policy-gated. |
+| `validation.loadtest` | Bounded, opt-in, LAB-only availability probe (hard caps; refuses unless lab + dos + opt-in). Not a DoS tool. |
+| `reporting.bundle` | Professional deliverable: `reports/` with executive + technical reports, JSON artifacts, SARIF, per-finding evidence, attack graph, manifest. |
+| `core.checkpoint` (baselines) | `save_baseline`/`find_baseline` for `--retest` (auto-locate + diff + refresh). |
+
+Findings now also carry `capec` and `root_cause` (professional finding format).
+
 ## Design decisions
 
 - **Preserve what works.** The existing flat `scanner_*.py` modules are *driven

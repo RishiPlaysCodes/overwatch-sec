@@ -92,6 +92,8 @@ class Finding:
     cvss: float | None = None
     kev: bool = False            # CISA Known-Exploited
     mitre: list[str] = field(default_factory=list)   # ATT&CK technique ids
+    capec: list[str] = field(default_factory=list)   # CAPEC attack-pattern ids
+    root_cause: str = ""         # underlying cause (professional finding format)
     references: list[str] = field(default_factory=list)
     # bookkeeping
     profile: str = ""
@@ -179,6 +181,9 @@ class Finding:
             cve=cve_m.group(0).upper() if cve_m else d.get("cve", ""),
             cvss=cvss,
             kev=kev,
+            capec=list(d.get("capec", []) or []),
+            root_cause=d.get("root_cause", ""),
+            references=list(d.get("references", []) or []),
             profile=profile,
         )
 

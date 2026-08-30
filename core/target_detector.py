@@ -65,6 +65,20 @@ def detect(target: str) -> dict:
             return {"kind": "cloud", "value": t, "hints": {"iac": True}}
         return {"kind": "code", "value": t, "hints": {"code": has_code}}
 
+    # host-data export JSON -> linux / windows host assessment
+    if os.path.isfile(t) and low.endswith(".json"):
+        try:
+            import json
+            with open(t, "r", errors="ignore") as fh:
+                head = fh.read(4000)
+            blob = head.lower()
+            if any(k in blob for k in ('"suid"', '"sshd_config"', '"capabilities"', '"sudo"')):
+                return {"kind": "linux", "value": t, "hints": {"export": True}}
+            if any(k in blob for k in ('"services"', '"smb"', '"rdp"', '"winrm"', '"unquoted')):
+                return {"kind": "windows", "value": t, "hints": {"export": True}}
+        except Exception:
+            pass
+
     # explicit URL -> web/api
     if low.startswith(("http://", "https://")):
         kind = "api" if re.search(r"/(api|v\d|graphql|rest)(/|$)", low) else "web"
@@ -102,4 +116,6 @@ KIND_TO_SCANNER = {
     "container": "scanner_container",
     "kubernetes": "scanner_kubernetes",   # dedicated k8s manifest audit
     "code": "scanner_code",
+    "linux": "scanner_linux",        # host audit from an authorized export
+    "windows": "scanner_windows",    # host audit from an authorized export
 }

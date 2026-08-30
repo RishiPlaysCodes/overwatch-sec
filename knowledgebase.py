@@ -30,6 +30,9 @@ KB: dict[str, dict] = {
     "web.sqli": {
         "cwe": "CWE-89",
         "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-66"],
+        "root_cause": "Untrusted input concatenated into a SQL statement instead of using "
+        "parameterized queries / prepared statements.",
         "severity": "high",
         "title": "SQL Injection",
         "description": "User input is concatenated into an SQL query without parameterization, "
@@ -43,6 +46,8 @@ KB: dict[str, dict] = {
     "web.xss.reflected": {
         "cwe": "CWE-79",
         "owasp": "A03:2021 Injection (XSS)",
+        "capec": ["CAPEC-63", "CAPEC-591"],
+        "root_cause": "Request input echoed into the response without context-aware output encoding.",
         "severity": "medium",
         "title": "Reflected Cross-Site Scripting (XSS)",
         "description": "Request input is echoed back into the HTML response without output encoding.",
@@ -622,6 +627,134 @@ KB: dict[str, dict] = {
         "patch": "Front the service with a CDN/WAF that provides caching, rate limiting, and DDoS absorption; "
         "restrict the origin to the edge.",
     },
+    # ============================ LINUX HOST (local privilege / config) ====
+    "linux.suid": {
+        "cwe": "CWE-250", "owasp": "Host Security",
+        "capec": ["CAPEC-69"],
+        "root_cause": "A SUID/SGID binary runs with elevated privileges; if it is a known GTFOBins "
+        "binary or custom/unexpected, it can be abused to escalate.",
+        "severity": "high", "title": "Dangerous SUID/SGID binary",
+        "description": "A setuid/setgid binary that is known-abusable (GTFOBins) or unexpected was found.",
+        "attack": "Attacker with a local shell invokes the SUID binary in its documented abuse pattern to "
+        "run commands as root (local privilege escalation).",
+        "patch": "Remove the setuid bit (`chmod u-s`) where not required; replace abusable binaries; "
+        "restrict with AppArmor/SELinux; audit against a known-good baseline.",
+    },
+    "linux.sudo": {
+        "cwe": "CWE-250", "owasp": "Host Security",
+        "root_cause": "sudoers grants NOPASSWD or a command that can spawn a shell / write arbitrary files.",
+        "severity": "high", "title": "Risky sudo configuration",
+        "description": "sudo rules allow passwordless or shell-capable commands (privilege escalation vector).",
+        "attack": "Attacker runs the permitted command's escape (e.g. `sudo vi`/`less`/`find -exec`) to obtain "
+        "a root shell without a password.",
+        "patch": "Remove NOPASSWD, avoid shell-capable commands in sudoers, scope to specific args, and "
+        "review with `sudo -l` audits.",
+    },
+    "linux.world_writable": {
+        "cwe": "CWE-732", "owasp": "Host Security",
+        "root_cause": "A privileged/executed path is world-writable, allowing tampering.",
+        "severity": "medium", "title": "World-writable privileged path",
+        "description": "A world-writable file/dir in a sensitive/executed location was found.",
+        "attack": "Attacker overwrites a script/binary that a privileged process executes, gaining code "
+        "execution at higher privilege.",
+        "patch": "Tighten permissions (remove world-write), set correct ownership, and monitor sensitive paths.",
+    },
+    "linux.cron": {
+        "cwe": "CWE-732", "owasp": "Host Security",
+        "root_cause": "A cron/systemd job runs a writable script or as root from an insecure path.",
+        "severity": "medium", "title": "Insecure scheduled job",
+        "description": "A cron/systemd job references a writable script or runs from a world-writable location.",
+        "attack": "Attacker edits the writable job target so their code runs at the job's (often root) privilege.",
+        "patch": "Ensure job targets are root-owned and not writable; use absolute paths; least-privilege the job.",
+    },
+    "linux.ssh_config": {
+        "cwe": "CWE-1188", "owasp": "Host Security",
+        "root_cause": "sshd permits root login or password authentication.",
+        "severity": "medium", "title": "Weak SSH server configuration",
+        "description": "sshd_config allows PermitRootLogin yes and/or PasswordAuthentication yes.",
+        "attack": "Attacker brute-forces credentials or logs in directly as root over SSH.",
+        "patch": "Set `PermitRootLogin no`, prefer key-based auth (`PasswordAuthentication no`), and rate-limit.",
+    },
+    "linux.capabilities": {
+        "cwe": "CWE-250", "owasp": "Host Security",
+        "root_cause": "A binary carries a powerful Linux capability (e.g. cap_setuid, cap_dac_override).",
+        "severity": "high", "title": "Dangerous file capability",
+        "description": "A file has a capability that enables privilege escalation.",
+        "attack": "Attacker abuses the capability (e.g. cap_setuid+python) to elevate to root.",
+        "patch": "Remove unneeded capabilities (`setcap -r`); grant the minimum capability required.",
+    },
+    "linux.kernel_outdated": {
+        "cwe": "CWE-1035", "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "root_cause": "The kernel/package versions map to known local-privesc CVEs.",
+        "severity": "high", "title": "Outdated kernel / vulnerable packages",
+        "description": "Kernel or package versions correspond to known vulnerabilities.",
+        "attack": "Attacker uses a matching public local-privesc exploit for the kernel/package version.",
+        "patch": "Patch/upgrade the kernel and packages; enable unattended security updates; reboot as needed.",
+    },
+
+    # ============================ WINDOWS HOST (local privilege / exposure) =
+    "windows.unquoted_service": {
+        "cwe": "CWE-428", "owasp": "Host Security",
+        "capec": ["CAPEC-471"],
+        "root_cause": "A service binary path contains spaces and is unquoted, and an earlier path "
+        "segment is writable.",
+        "severity": "high", "title": "Unquoted service path",
+        "description": "A Windows service has an unquoted binary path with a writable parent directory.",
+        "attack": "Attacker plants a malicious executable at the earlier path segment; the service starts "
+        "it as SYSTEM (local privilege escalation).",
+        "patch": "Quote all service ImagePath values and remove write access on service directories.",
+    },
+    "windows.weak_service_perms": {
+        "cwe": "CWE-732", "owasp": "Host Security",
+        "root_cause": "A non-admin principal can modify a service's binary or configuration.",
+        "severity": "high", "title": "Weak service permissions",
+        "description": "A service's binary/config is writable by non-privileged users.",
+        "attack": "Attacker replaces the service binary or reconfigures it to run their payload as SYSTEM.",
+        "patch": "Restrict service binary/config ACLs to administrators; audit with accesschk.",
+    },
+    "windows.smb_exposed": {
+        "cwe": "CWE-668", "owasp": "Network Exposure",
+        "root_cause": "SMB (445) is reachable, possibly with SMBv1 or signing disabled.",
+        "severity": "high", "title": "SMB exposed / weakly configured",
+        "description": "SMB is reachable; SMBv1 enabled or signing not required.",
+        "attack": "Attacker relays authentication (NTLM relay) or exploits SMBv1 (e.g. EternalBlue-class) "
+        "for code execution / lateral movement.",
+        "patch": "Disable SMBv1, require SMB signing, restrict 445 to management networks, patch.",
+    },
+    "windows.rdp_exposed": {
+        "cwe": "CWE-668", "owasp": "Network Exposure",
+        "root_cause": "RDP (3389) is reachable, possibly without NLA.",
+        "severity": "medium", "title": "RDP exposed",
+        "description": "RDP is reachable; Network Level Authentication may be disabled.",
+        "attack": "Attacker brute-forces/relays RDP or exploits RDP CVEs for access and lateral movement.",
+        "patch": "Require NLA, restrict RDP to VPN/bastion + MFA, and patch RDP CVEs.",
+    },
+    "windows.winrm_exposed": {
+        "cwe": "CWE-668", "owasp": "Network Exposure",
+        "root_cause": "WinRM (5985/5986) is reachable and usable for remote execution.",
+        "severity": "medium", "title": "WinRM exposed",
+        "description": "WinRM management endpoint is reachable.",
+        "attack": "With valid/relayed credentials, attacker runs commands remotely (lateral movement).",
+        "patch": "Restrict WinRM to management hosts, require HTTPS + strong auth, and monitor usage.",
+    },
+    "windows.credential_exposure": {
+        "cwe": "CWE-522", "owasp": "A07:2021 Identification & Authentication Failures",
+        "root_cause": "Credentials cached/stored insecurely (LSASS, autologon, unattend, cpassword).",
+        "severity": "high", "title": "Credential exposure",
+        "description": "Cached/stored credentials or credential material are recoverable.",
+        "attack": "Attacker dumps LSASS or reads autologon/unattend/GPP cpassword to harvest credentials "
+        "for privilege escalation and lateral movement.",
+        "patch": "Enable Credential Guard/LSASS protection, remove autologon/unattend secrets, rotate exposed creds.",
+    },
+    "windows.patch_missing": {
+        "cwe": "CWE-1035", "owasp": "A06:2021 Vulnerable & Outdated Components",
+        "root_cause": "Missing security updates map to known exploitable CVEs.",
+        "severity": "high", "title": "Missing security patches",
+        "description": "The host is missing patches that correspond to known vulnerabilities.",
+        "attack": "Attacker uses a public exploit for the unpatched vulnerability to gain code execution/privesc.",
+        "patch": "Apply the missing security updates; establish a patch cadence; verify with a re-scan.",
+    },
+
     "availability.amplification_surface": {
         "cwe": "CWE-406",
         "owasp": "Availability",

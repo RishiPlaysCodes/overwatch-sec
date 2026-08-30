@@ -182,6 +182,49 @@ For web/API/recon targets the engine passively inspects response headers for
 rate-limiting, WAF/CDN edge protection, and amplification surface. This is **not**
 a DoS tool — there is no flooding or load generation.
 
+## Host assessment (Linux / Windows — from authorized exports)
+
+Collect host data on a system you're authorized to assess, then analyze it
+offline (the tool never logs into or executes on a remote host):
+```bash
+# generate the Linux export on an authorized host (read-only), then:
+python3 vulnscan.py host.json --type linux      # SUID/sudo/caps/cron/ssh/pkg CVEs
+python3 vulnscan.py winhost.json --type windows # services/SMB/RDP/WinRM/creds/patches
+```
+`*.json` exports are auto-detected as linux/windows. For AD attack paths use
+`--identity-file` (BloodHound export).
+
+## Social-engineering awareness (authorized simulation analysis)
+
+Analyzes the RESULTS of a sanctioned awareness campaign — it never sends
+campaigns or handles real credentials, and only runs when the policy enables it:
+```bash
+python3 vulnscan.py org.example --policy se-policy.yaml --se-input campaign.json
+```
+Reports human-risk score, click / (dummy) submission / reporting / MFA-resilience
+rates, and policy gaps.
+
+## Professional report bundle
+
+```bash
+python3 vulnscan.py target --profile enterprise --mode deep --yes --bundle
+```
+Writes `reports/`: `executive-report.md`(+pdf), `technical-report.md/html`(+pdf),
+`findings.json`, `attack-paths.json`, `coverage.json`, `report.sarif`,
+`evidence/<fingerprint>.json` per finding (redacted), `attack-graph.html`,
+`manifest.json`.
+
+## Retest & availability load-test
+
+```bash
+python3 vulnscan.py target --baseline        # save a baseline for this target
+python3 vulnscan.py target --retest          # auto-locate baseline + diff, then refresh it
+
+# bounded, LAB-ONLY availability probe (opt-in; requires a lab policy with dos.enabled).
+# hard-capped (<=50 reqs, <=5 concurrency, <=10s, rate-limited, abortable) — never a flood.
+python3 vulnscan.py lab-target --profile lab --policy lab-dos.yaml --load-test
+```
+
 ## Plugins (extend without touching core)
 
 Drop a `plugins/*.py` defining `register(reg)` (see `plugins/README.md`). Loaded

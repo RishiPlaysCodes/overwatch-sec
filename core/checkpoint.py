@@ -99,6 +99,33 @@ class Checkpoint:
                 "stages": counts, "findings": len(self.findings)}
 
 
+BASELINE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "vulnscan", "baselines")
+
+
+def _baseline_key(target: str) -> str:
+    import hashlib
+    import re
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", target)[:40]
+    return f"{safe}-{hashlib.sha1(target.encode()).hexdigest()[:8]}"
+
+
+def save_baseline(target: str, report_json_path: str) -> str | None:
+    """Save a report.json as the retest baseline for this target."""
+    import shutil
+    if not os.path.isfile(report_json_path):
+        return None
+    os.makedirs(BASELINE_DIR, exist_ok=True)
+    dst = os.path.join(BASELINE_DIR, _baseline_key(target) + ".json")
+    shutil.copy(report_json_path, dst)
+    return dst
+
+
+def find_baseline(target: str) -> str | None:
+    """Locate the most recent baseline for a target (for --retest)."""
+    p = os.path.join(BASELINE_DIR, _baseline_key(target) + ".json")
+    return p if os.path.isfile(p) else None
+
+
 def list_scans() -> list[dict]:
     out = []
     if not os.path.isdir(CACHE_DIR):
