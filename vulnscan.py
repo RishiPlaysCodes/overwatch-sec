@@ -1,290 +1,291 @@
 #!/usr/bin/env python3
 """
-vulnscan.py — Master multi-target vulnerability scanner (one command).
+vulnscan.py — Universal Security Assessment & Authorized Adversary-Emulation platform.
 
-Pass ONE target and the scanner auto-detects its type and runs the right suite:
+One command, target auto-detection, profile + mode driven, scope- and
+policy-enforced, with measurable coverage and industry-grade reports.
 
-  Website     :  python3 vulnscan.py https://example.com
-  Mobile      :  python3 vulnscan.py ./app.apk           (or app.ipa)
-  Cloud IaC   :  python3 vulnscan.py ./terraform/
-  Cloud live  :  python3 vulnscan.py aws                 (or azure / gcp)
-  Network/host:  python3 vulnscan.py 10.0.0.5            (IP / CIDR / host)
-  Source code :  python3 vulnscan.py ./my-project        (SCA + secrets + SAST)
-  Container   :  python3 vulnscan.py nginx:1.21          (image ref)
+    vulnscan example.com
+    vulnscan example.com --profile bugbounty --mode deep --scope scope.txt
+    vulnscan 10.0.0.0/24 --profile redteam --mode fast --yes
+    vulnscan ./app.apk   --profile mobile
+    vulnscan --list-profiles | --list-tools | --dry-run | --version
 
-Coverage spans OWASP Top 10 (Web / Mobile / Cloud), CWE / SANS Top 25, plus
-network-service vulns, dependency CVEs, secrets, and container image CVEs.
-Discovered CVEs are enriched with NVD CVSS and the CISA KEV catalog
-(actively-exploited-in-the-wild flag) so the report prioritizes real risk.
-
-For every finding the report explains:
-    - what it is (description)
-    - how an attacker exploits it (attack scenario)
-    - how to fix it (patch / remediation)
-plus CWE + OWASP mapping and (for CVEs) CVSS + KEV status.
-
->>> AUTHORIZED USE ONLY <<<
-Run only against systems / apps / accounts you OWN or are explicitly permitted
-to test. DoS / DDoS / stress testing is intentionally NOT included — it is
-destructive, not a vulnerability check. This tool detects and explains; it does
-not weaponize or run exploit code.
+SAFE BY DEFAULT — detection, recon and *controlled* validation only. No
+auto-exploitation, no post-exploitation, no DoS/flooding. Intrusive/destructive
+capabilities require an explicit, authorized policy and never run by default.
+This is an authorized-testing tool: only assess systems you own or are
+explicitly permitted to test.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import sys
 from datetime import datetime, timezone
 
-from common import C, banner, err, ok, warn
-from knowledgebase import SEVERITY_ORDER
+from core import __version__
+from core import capabilities, config
+from core.orchestrator import build_plan, run as run_assessment
+from core.policy import Policy
+from core.scope import Scope
+from core.target_detector import KIND_TO_SCANNER, detect
 
-import scanner_cloud
-import scanner_code
-import scanner_container
-import scanner_mobile
-import scanner_network
-import scanner_recon
-import scanner_web
+try:
+    from common import C
+except Exception:                       # minimal color fallback
+    class C:  # type: ignore
+        RESET = BOLD = RED = GRN = YEL = BLU = CYN = MAG = ""
 
-SEVERITIES = ("critical", "high", "medium", "low", "info")
+BANNER = r"""
+╔══════════════════════════════════════════════╗
+║            VULNSCAN SECURITY ENGINE            ║
+╚══════════════════════════════════════════════╝"""
 
-# image ref like name:tag or repo/name:tag or registry/ns/name@sha256:...
-_IMAGE_RE = re.compile(r"^([a-z0-9.\-]+(?::[0-9]+)?/)?[a-z0-9._\-/]+(:[\w.\-]+|@sha256:[0-9a-f]{64})$", re.I)
-_IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$")
-
-# markers used to tell a "cloud/IaC" dir apart from a "source code" dir
-_IAC_MARKERS = (".tf", ".tf.json", ".template")
-_CODE_MANIFESTS = {"requirements.txt", "package.json", "go.mod", "pom.xml",
-                   "build.gradle", "Gemfile", "composer.json", "Cargo.toml", "pyproject.toml"}
-
-
-def detect_profile(target: str) -> str:
-    t = target.lower()
-    if t in ("aws", "azure", "gcp"):
-        return "cloud"
-    if t.endswith((".apk", ".ipa", ".xapk")):
-        return "mobile"
-
-    if os.path.isdir(target):
-        has_iac = has_code = False
-        for root, _d, files in os.walk(target):
-            if any(f.endswith(_IAC_MARKERS) for f in files):
-                has_iac = True
-            if any(f in _CODE_MANIFESTS for f in files) or any(f.endswith((".py", ".js", ".ts", ".go", ".java")) for f in files):
-                has_code = True
-            # only need a shallow look
-            if root != target:
-                break
-        if has_iac:
-            return "cloud"
-        if has_code:
-            return "code"
-        return "code"  # default for a plain directory
-
-    if re.match(r"^https?://", target):
-        return "web"
-    if _IP_RE.match(target):
-        return "network"
-    # image ref (has a tag/digest and isn't obviously a hostname URL)
-    if _IMAGE_RE.match(target) and (":" in target.split("/")[-1] or "@sha256:" in target):
-        return "container"
-    if "." in target:
-        return "web"  # hostname
-    return "web"
+PROFILE_MENU = [
+    ("bugbounty", "Bug Bounty (scope-first attack surface)"),
+    ("redteam", "Red Team (authorized adversary emulation)"),
+    ("enterprise", "Enterprise (broad internal assessment)"),
+    ("web", "Web application / API"),
+    ("mobile", "Mobile app (APK/IPA)"),
+    ("cloud", "Cloud / IaC"),
+    ("network", "Network / host"),
+    ("code", "Source code"),
+]
 
 
-DISPATCH = {
-    "web": scanner_web.scan,
-    "mobile": scanner_mobile.scan,
-    "cloud": scanner_cloud.scan,
-    "network": scanner_network.scan,
-    "code": scanner_code.scan,
-    "container": scanner_container.scan,
-    "recon": scanner_recon.scan,
-}
+# ---------------------------------------------------------------------------
+# informational commands
+# ---------------------------------------------------------------------------
+def cmd_list_profiles() -> int:
+    print("Available profiles:")
+    for name in config.list_profiles():
+        p = config.load_profile(name)
+        print(f"  {name:12} {p.get('description', '')}")
+    return 0
 
 
-def prompt_for_target() -> str:
-    """Interactively ask what to scan when no target is given on the CLI."""
-    print(f"\n{C.CYN}{C.BOLD}What do you want to scan?{C.RESET}")
-    print(f"  {C.BOLD}0) Bug-bounty RECON (domain){C.RESET} full attack-surface pipeline (e.g. example.com)")
-    print("  1) Website / URL            (e.g. https://example.com)")
-    print("  2) Network host / IP / CIDR (e.g. 192.168.1.10 or 192.168.1.0/24)")
-    print("  3) Mobile app               (path to .apk / .ipa)")
-    print("  4) Source code folder       (path to a project dir)")
-    print("  5) Container image          (e.g. nginx:1.21)")
-    print("  6) Cloud IaC folder         (path to terraform/ etc.)")
-    print("  7) Live cloud account       (aws / azure / gcp)")
-    print(f"{C.BLU}Tip:{C.RESET} you can also just type the target directly.\n")
-    choice = input("Choice [0-7] or target: ").strip()
-    hints = {
-        "0": ("Enter root domain (e.g. example.com): ", "recon"),
-        "1": ("Enter the URL: ", None),
-        "2": ("Enter host/IP/CIDR: ", None),
-        "3": ("Enter path to .apk/.ipa: ", None),
-        "4": ("Enter path to the code folder: ", None),
-        "5": ("Enter image ref (name:tag): ", None),
-        "6": ("Enter path to the IaC folder: ", None),
-        "7": ("Enter provider (aws/azure/gcp): ", None),
-    }
-    if choice in hints:
-        prompt, forced = hints[choice]
-        tgt = input(prompt).strip()
-        return (forced + ":" + tgt) if forced else tgt   # "recon:domain" signals the profile
-    return choice  # user typed the target directly
+def cmd_list_tools() -> int:
+    snap = capabilities.snapshot()
+    print(f"Tools available ({len(snap['available'])}):")
+    for t in snap["available"]:
+        print(f"  ✓ {t['name']:14} risk={t['risk']:11} kinds={','.join(t['kinds'])}"
+              + (f"  [{t.get('version','')}]" if t.get("version") else ""))
+    print(f"\nTools NOT installed ({len(snap['unavailable'])}):")
+    for t in snap["unavailable"]:
+        print(f"  ✗ {t['name']:14} kinds={','.join(t['kinds'])}")
+    return 0
 
 
-def authorize(target: str, profile: str, auto_yes: bool) -> bool:
+def cmd_list_capabilities() -> int:
+    from core.policy import SAFETY_LEVELS
+    print("Safety levels (least -> most impactful):", " -> ".join(SAFETY_LEVELS))
+    print("Default policy runs: passive + safe_active only.\n")
+    kinds = sorted({k for t in capabilities.REGISTRY for k in t.kinds})
+    for k in kinds:
+        tools = [t.name for t in capabilities.for_kind(k)]
+        print(f"  {k:12} : {', '.join(tools)}")
+    return 0
+
+
+def cmd_update() -> int:
+    import subprocess
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "feeds", "update_feeds.py")
+    if not os.path.isfile(script):
+        print("feed updater not found"); return 1
+    return subprocess.run([sys.executable, script]).returncode
+
+
+# ---------------------------------------------------------------------------
+# interactive selection
+# ---------------------------------------------------------------------------
+def prompt_profile() -> str:
+    print(f"{C.CYN}{C.BOLD}Select profile:{C.RESET}")
+    for i, (name, desc) in enumerate(PROFILE_MENU, 1):
+        print(f"  {i}. {desc}")
+    choice = input("Choice [1-8] (default 1): ").strip() or "1"
+    try:
+        return PROFILE_MENU[int(choice) - 1][0]
+    except (ValueError, IndexError):
+        return choice if choice in dict(PROFILE_MENU) else "bugbounty"
+
+
+def prompt_mode() -> str:
+    print(f"\n{C.CYN}{C.BOLD}Select mode:{C.RESET}\n  1. FAST (quick, safe)\n  2. DEEP (thorough)")
+    return "deep" if input("Choice [1-2] (default 1): ").strip() == "2" else "fast"
+
+
+def authorize(target: str, profile: str, mode: str, policy: Policy, auto_yes: bool) -> bool:
+    print(BANNER)
+    print(f"Target : {C.BOLD}{target}{C.RESET}")
+    print(f"Profile: {profile}    Mode: {mode.upper()}")
+    print(f"Policy : {policy.summary()}")
     if auto_yes:
         return True
-    print(
-        f"{C.YEL}{C.BOLD}\nAUTHORIZATION CHECK{C.RESET}\n"
-        f"About to run a {C.BOLD}{profile}{C.RESET} scan on: {C.BOLD}{target}{C.RESET}\n"
-        "Continue only if you OWN this target or have EXPLICIT WRITTEN PERMISSION to test it.\n"
-    )
+    print(f"\n{C.YEL}{C.BOLD}AUTHORIZATION REQUIRED{C.RESET}")
+    print("Only assess systems you OWN or are EXPLICITLY authorized to test.")
+    if policy.intrusive or policy.destructive:
+        print(f"{C.RED}This policy permits INTRUSIVE/DESTRUCTIVE tests — be certain of authorization.{C.RESET}")
     return input("Type 'I AM AUTHORIZED' to continue: ").strip() == "I AM AUTHORIZED"
 
 
-def write_reports(report: dict, outdir: str) -> tuple[str, str]:
-    json_path = os.path.join(outdir, "report.json")
-    with open(json_path, "w") as fh:
-        json.dump(report, fh, indent=2)
-
-    md_path = os.path.join(outdir, "report.md")
-    findings = sorted(report["findings"], key=lambda x: SEVERITY_ORDER.get(x["severity"], 9))
-    kev = [f for f in findings if "CISA KEV" in f.get("evidence", "")]
-
-    with open(md_path, "w") as fh:
-        fh.write("# Vulnerability Assessment Report\n\n")
-        fh.write(f"- **Profile:** {report['profile']}\n")
-        fh.write(f"- **Target:** {report['target']}\n")
-        fh.write(f"- **Time (UTC):** {report['started']}\n")
-        fh.write(f"- **Total findings:** {len(findings)}\n\n")
-
-        counts: dict[str, int] = {}
-        for f in findings:
-            counts[f["severity"]] = counts.get(f["severity"], 0) + 1
-        fh.write("| Severity | Count |\n|---|---|\n")
-        for sev in SEVERITIES:
-            if sev in counts:
-                fh.write(f"| {sev.upper()} | {counts[sev]} |\n")
-        fh.write("\n")
-
-        if kev:
-            fh.write("> ⚠️ **Actively exploited (CISA KEV):** "
-                     f"{len(kev)} finding(s) match CVEs known to be exploited in the wild — patch these first.\n\n")
-
-        fh.write("---\n\n## Findings\n\n")
-        if not findings:
-            fh.write("_No findings from the checks that ran._\n\n")
-        for i, f in enumerate(findings, 1):
-            fh.write(f"### {i}. [{f['severity'].upper()}] {f['title']}\n\n")
-            fh.write(f"- **CWE:** {f['cwe']} &nbsp;|&nbsp; **OWASP:** {f['owasp']}\n")
-            fh.write(f"- **Evidence:** `{f['evidence']}`\n\n")
-            fh.write(f"**What it is:** {f['description']}\n\n")
-            fh.write(f"**Attack scenario:** {f['attack']}\n\n")
-            fh.write(f"**Fix / patch:** {f['patch']}\n\n")
-            fh.write("---\n\n")
-
-        fh.write("## Tools\n\n")
-        for t in report["tools"]:
-            line = f"- **{t['tool']}**: {t['status']}"
-            if t.get("output"):
-                line += f" — `{t['output']}`"
-            if t.get("reason"):
-                line += f" ({t['reason']})"
-            fh.write(line + "\n")
-        fh.write("\n> Findings are indicators. Validate manually before acting. "
-                 "DoS/DDoS testing intentionally excluded.\n")
-    return json_path, md_path
-
-
-def print_summary(report: dict) -> None:
-    banner("SUMMARY")
-    counts: dict[str, int] = {}
-    for f in report["findings"]:
-        counts[f["severity"]] = counts.get(f["severity"], 0) + 1
-    colors = {"critical": C.MAG, "high": C.RED, "medium": C.YEL, "low": C.BLU, "info": C.CYN}
-    for sev in SEVERITIES:
-        if sev in counts:
-            print(f"  {colors.get(sev,'')}{sev.upper():8}{C.RESET}: {counts[sev]}")
-
-    kev = [f for f in report["findings"] if "CISA KEV" in f.get("evidence", "")]
-    if kev:
-        print(f"\n{C.MAG}{C.BOLD}⚠️  Actively exploited (CISA KEV) — patch first:{C.RESET}")
-        for f in kev[:8]:
-            print(f"  • {f['evidence'][:80]}")
-
-    top = [f for f in report["findings"] if f["severity"] in ("critical", "high")]
-    if top:
-        print(f"\n{C.RED}{C.BOLD}Top critical/high issues:{C.RESET}")
-        for f in top[:8]:
-            print(f"  • [{f['severity'].upper()}] {f['title']} ({f['cwe']}) — {f['evidence'][:60]}")
+# ---------------------------------------------------------------------------
+def collect_secrets(args) -> list[str]:
+    """Gather operator-supplied secret values so they can be redacted from output."""
+    secrets = []
+    for v in (args.token, args.api_key, args.cookie):
+        if v:
+            secrets.append(v)
+    for h in (args.header or []):
+        if ":" in h:
+            secrets.append(h.split(":", 1)[1].strip())
+    return [s for s in secrets if s]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Master recon + vulnerability-discovery pipeline "
-                    "(recon / web / mobile / cloud / network / code / container). "
-                    "Authorized use only — detection & recon, no auto-exploitation.")
-    ap.add_argument("target", nargs="?", default=None,
-                    help="URL | host/IP/CIDR | app.apk/.ipa | dir (IaC or source) | image:tag | aws/azure/gcp "
-                         "(omit to be asked interactively)")
-    ap.add_argument("--type", choices=["auto", "recon", "web", "mobile", "cloud", "network", "code", "container"],
-                    default="auto", help="force target type (default: auto-detect)")
+        prog="vulnscan",
+        description="Universal Security Assessment & Authorized Adversary-Emulation platform. "
+                    "Safe by default; authorized use only.")
+    ap.add_argument("target", nargs="?", default=None, help="URL/domain/IP/CIDR/app/dir/image (omit for interactive)")
+    ap.add_argument("--profile", default=None, help="assessment profile (see --list-profiles)")
+    ap.add_argument("--mode", choices=["fast", "deep"], default=None, help="fast (quick) or deep (thorough)")
+    ap.add_argument("--type", dest="force_kind",
+                    choices=sorted(set(KIND_TO_SCANNER)), default=None,
+                    help="force target kind (override auto-detection)")
+    ap.add_argument("--scope", default=None, help="scope file (in-scope assets, one per line)")
+    ap.add_argument("--policy", default=None, help="policy YAML file (safety levels)")
     ap.add_argument("--out", default=None, help="output directory")
+    ap.add_argument("--formats", default="md,json,html", help="report formats: md,json,csv,html")
     ap.add_argument("--skip", default="", help="comma list of tools to skip")
-    ap.add_argument("--scope", default=None,
-                    help="path to a scope file (one in-scope domain per line) — recon confines hosts to it")
-    ap.add_argument("--deep", action="store_true",
-                    help="thorough (slower) mode: recon content-discovery/screenshots, heavy nmap NSE, more ports")
-    ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets / CI)")
+    ap.add_argument("--deep", action="store_true", help="alias for --mode deep")
+    ap.add_argument("--workers", type=int, default=None, help="max concurrent workers")
+    ap.add_argument("--timeout", type=int, default=None, help="per-tool timeout seconds")
+    # authentication (redacted from all output)
+    ap.add_argument("--cookie", default=None)
+    ap.add_argument("--header", action="append", help="extra header 'Name: value' (repeatable)")
+    ap.add_argument("--token", default=None)
+    ap.add_argument("--api-key", dest="api_key", default=None)
+    ap.add_argument("--username", default=None)
+    ap.add_argument("--aws-profile", dest="aws_profile", default=None)
+    ap.add_argument("--gcp-project", dest="gcp_project", default=None)
+    ap.add_argument("--azure-subscription", dest="azure_subscription", default=None)
+    # baseline / retest
+    ap.add_argument("--compare", default=None, help="compare against an old report.json")
+    ap.add_argument("--baseline", action="store_true", help="save this run as the baseline")
+    # meta
+    ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets/CI)")
+    ap.add_argument("--dry-run", action="store_true", help="show the planned pipeline, run nothing")
+    ap.add_argument("--coverage", action="store_true", help="print coverage summary only")
+    ap.add_argument("--list-profiles", action="store_true")
+    ap.add_argument("--list-tools", action="store_true")
+    ap.add_argument("--list-capabilities", action="store_true")
+    ap.add_argument("--check-updates", action="store_true")
+    ap.add_argument("--update", action="store_true", help="refresh CVE feeds")
+    ap.add_argument("--version", action="store_true")
     args = ap.parse_args()
 
-    target = args.target or prompt_for_target()
+    # meta commands
+    if args.version:
+        print(f"vulnscan {__version__}")
+        return 0
+    if args.list_profiles:
+        return cmd_list_profiles()
+    if args.list_tools:
+        return cmd_list_tools()
+    if args.list_capabilities:
+        return cmd_list_capabilities()
+    if args.update or args.check_updates:
+        return cmd_update()
+
+    # target + profile + mode (interactive if missing)
+    target = args.target
+    profile = (args.profile or "").lower()
     if not target:
-        err("No target given. Nothing to scan.")
-        return 2
+        profile = profile or prompt_profile()
+        target = input("\nEnter target: ").strip()
+        mode = args.mode or ("deep" if args.deep else prompt_mode())
+    else:
+        if not profile:
+            # infer a sensible default profile from the detected kind
+            kind = args.force_kind or detect(target)["kind"]
+            profile = {"recon": "bugbounty", "web": "web", "api": "web", "network": "network",
+                       "mobile": "mobile", "cloud": "cloud", "container": "cloud",
+                       "kubernetes": "cloud", "code": "code"}.get(kind, "bugbounty")
+        mode = args.mode or ("deep" if args.deep else config.load_profile(profile).get("default_mode", "fast"))
+    if not target:
+        print("No target given."); return 2
 
-    # The interactive menu prefixes a forced profile as "recon:<domain>".
-    forced_type = None
-    if ":" in target and target.split(":", 1)[0] in DISPATCH:
-        forced_type, target = target.split(":", 1)
+    policy = config.load_policy(profile, mode, args.policy)
+    if args.workers:
+        policy.workers = args.workers
+    if args.timeout:
+        policy.timeout = args.timeout
+    if args.skip:
+        policy.excluded_tools += [s.strip() for s in args.skip.split(",") if s.strip()]
 
-    profile = forced_type or (args.type if args.type != "auto" else detect_profile(target))
-    if profile == "web" and not re.match(r"^https?://", target) and target not in ("aws", "azure", "gcp"):
-        target = "https://" + target
-    skip = {s.strip() for s in args.skip.split(",") if s.strip()}
-    if args.deep:
-        skip.add("__deep__")   # scanners read this as "thorough mode"
-    if args.scope:
-        skip.add(f"scope={args.scope}")   # recon reads this for in-scope confinement
+    # dry-run: show plan and exit
+    if args.dry_run:
+        plan = build_plan(target, profile, mode, policy)
+        if args.force_kind:
+            plan["kind"] = args.force_kind
+            plan["scanner"] = KIND_TO_SCANNER.get(args.force_kind, plan["scanner"])
+        print(BANNER)
+        print(f"DRY RUN — no tests will be executed\n")
+        print(f"Target   : {target}")
+        print(f"Detected : {plan['kind']}  ->  {plan['scanner']}")
+        print(f"Profile  : {profile}   Mode: {mode}")
+        print(f"Policy   : {policy.summary()}")
+        print(f"Tools selected : {', '.join(plan['tools_selected']) or '(none installed/allowed)'}")
+        print("Tools skipped  :")
+        for t, r in sorted(plan["tools_skipped"].items()):
+            print(f"    - {t}: {r}")
+        return 0
 
-    banner(f"vulnscan — profile detected: {profile.upper()}")
-    ok(f"target: {target}")
-
-    if not authorize(target, profile, args.yes):
-        err("Authorization not confirmed. Aborting.")
-        return 2
+    if not authorize(target, profile, mode, policy, args.yes):
+        print("Authorization not confirmed. Aborting."); return 2
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", target)[:40]
     outdir = args.out or f"report-{profile}-{safe}-{ts}"
-    os.makedirs(outdir, exist_ok=True)
+    secrets = collect_secrets(args)
 
-    scan_fn = DISPATCH.get(profile, scanner_web.scan)
-    report = scan_fn(target, outdir, skip)
+    assessment = run_assessment(
+        target, profile=profile, mode=mode, policy=policy,
+        outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind)
 
-    report["started"] = ts
-    json_path, md_path = write_reports(report, outdir)
-    print_summary(report)
-    ok(f"JSON report : {json_path}")
-    ok(f"Markdown    : {md_path}")
-    ok(f"Output dir  : {outdir}/")
+    # reports
+    from reporting import report as report_mod
+    formats = tuple(f.strip() for f in args.formats.split(",") if f.strip())
+    paths = report_mod.write_all(assessment, outdir, formats=formats)
+
+    # console output
+    print("\n" + assessment.coverage.render())
+    s = report_mod.summarize(assessment)
+    print(f"\n{C.BOLD}RESULT{C.RESET}: score {s['security_score']}/100 | "
+          f"crit {s['counts']['critical']} high {s['counts']['high']} med {s['counts']['medium']} "
+          f"low {s['counts']['low']} info {s['counts']['info']} | KEV {s['kev_count']} | "
+          f"attack-paths {s['attack_paths']}")
+    if assessment.out_of_scope_dropped:
+        print(f"{C.YEL}Out-of-scope assets dropped: {len(assessment.out_of_scope_dropped)}{C.RESET}")
+    for fmt, p in paths.items():
+        print(f"  report.{fmt}: {p}")
+
+    # baseline / compare
+    if args.compare:
+        from reporting import compare as cmp_mod
+        try:
+            diff = cmp_mod.compare(args.compare, assessment)
+            print("\n" + cmp_mod.render(diff))
+        except Exception as e:
+            print(f"compare failed: {e}")
+    if args.baseline:
+        import shutil
+        base = os.path.join(outdir, "baseline.json")
+        shutil.copy(paths.get("json", os.path.join(outdir, "report.json")), base)
+        print(f"  baseline saved: {base}")
     return 0
 
 
@@ -292,5 +293,4 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        err("interrupted")
-        sys.exit(130)
+        print("\ninterrupted"); sys.exit(130)

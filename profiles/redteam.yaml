@@ -1,0 +1,17 @@
+# Red-team profile — deepest AUTHORIZED assessment (adversary emulation).
+# Still safe by default: validation allowed, but intrusive/destructive require
+# an explicit policy opt-in (see policies/redteam.yaml). No auto-exploitation.
+name: redteam
+description: Authorized adversary emulation — recon, discovery, safe validation, attack-path analysis.
+default_mode: deep
+scope_required: true
+scanners:
+  - recon
+  - web
+  - network
+  - cloud
+report_formats:
+  - md
+  - json
+  - html
+  - csv

@@ -1,0 +1,13 @@
+# Bug-bounty profile — scope-first, safe by default.
+name: bugbounty
+description: Attack-surface discovery and common web/API/mobile vuln classes.
+default_mode: fast
+scope_required: true
+scanners:
+  - recon
+  - web
+  - api
+report_formats:
+  - md
+  - json
+  - html

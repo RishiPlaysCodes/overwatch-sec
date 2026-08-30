@@ -1,12 +1,42 @@
 # vulnscan — Master Multi-Platform Vulnerability Scanner
 
-**One command. One target. Full report.** vulnscan auto-detects your target and
-runs the right suite of checks + industry tools across **seven surfaces** —
-**bug-bounty recon**, website, mobile app, cloud/IaC, network/host, source code,
-and container images. Every finding is explained: **what it is**, **how an
-attacker exploits it**, and **how to fix it** — mapped to **OWASP Top 10** and
-**CWE / SANS Top 25**, and (for CVEs) enriched with **CVSS** and the **CISA KEV**
-actively-exploited flag.
+# 🛡️ vulnscan — Universal Security Assessment Platform
+
+**A modular, profile-driven, authorized security-assessment & adversary-emulation
+platform.** One command, target auto-detection, scope + policy enforcement,
+attack-path correlation, MITRE ATT&CK mapping, measurable coverage, and
+industry-grade reports (md/json/csv/html).
+
+```bash
+python3 vulnscan.py example.com                              # auto-detect + assess
+python3 vulnscan.py example.com --profile bugbounty --mode deep --scope scope.txt
+python3 vulnscan.py 10.0.0.0/24 --profile redteam --mode fast --yes
+python3 vulnscan.py --list-profiles | --list-tools | --dry-run | --version
+```
+
+**Profiles:** bugbounty · redteam · enterprise · web · mobile · cloud · network · code
+**Modes:** `fast` (quick, safe) · `deep` (thorough + safe validation + attack paths)
+
+📚 **Docs:** [INSTALL](INSTALL.md) · [USAGE](USAGE.md) · [ARCHITECTURE](ARCHITECTURE.md) · [SECURITY](SECURITY.md)
+
+> 🛡️ **Safe by default — detection, recon & controlled validation only.** No
+> auto-exploitation, no post-exploitation, no DoS/flooding. Intrusive/destructive
+> capabilities require an explicit, authorized policy and never run by default.
+> Every scan enforces **scope**, prints **measurable coverage**, and never claims
+> "100% secure". Authorized use only.
+
+---
+
+## How it works (engine)
+
+vulnscan detects the target → enforces **scope** + **safety policy** → selects the
+right scanner pipeline and tools → runs the (preserved) scanners → normalizes
+results into a unified **Finding** model with **confidence + validation state** →
+correlates **attack paths** and maps **MITRE ATT&CK** → scores risk → reports.
+
+Under the hood it still runs the same battle-tested scanners below and explains
+every finding: **what it is**, **how an attacker exploits it**, **how to fix it**
+— mapped to **OWASP / CWE / SANS Top 25**, enriched with **CVSS + CISA KEV**.
 
 > 🎯 **For bug-bounty / red-team recon:** the `recon` profile chains subdomain
 > enumeration → HTTP probing → port scan → URL collection → content discovery →

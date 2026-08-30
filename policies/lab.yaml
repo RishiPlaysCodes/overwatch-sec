@@ -1,0 +1,21 @@
+# LAB policy — a fully-owned, isolated test environment you control.
+# Only here may deeper testing be enabled, and even so destructive stays OFF
+# unless you explicitly flip it for your own throwaway lab.
+authorization: lab
+
+testing:
+  passive: true
+  safe_active: true
+  validation: true
+  intrusive: true         # allowed in a declared LAB you own
+  destructive: false      # still off by default even in lab
+
+dos:
+  enabled: false          # bounded load-testing hooks only, never internet-scale flooding
+
+social_engineering:
+  enabled: false
+
+performance:
+  workers: 12
+  timeout: 60

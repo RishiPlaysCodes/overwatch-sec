@@ -1,0 +1,16 @@
+# Enterprise profile — broad internal assessment across many surfaces.
+name: enterprise
+description: Comprehensive internal security assessment across web, network, cloud, code, containers.
+default_mode: deep
+scanners:
+  - recon
+  - web
+  - network
+  - cloud
+  - code
+  - container
+report_formats:
+  - md
+  - json
+  - html
+  - csv

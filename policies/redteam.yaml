@@ -1,0 +1,21 @@
+# Red-team policy — authorized adversary emulation.
+# Validation is allowed; INTRUSIVE and DESTRUCTIVE remain OFF and must be turned
+# on explicitly by the operator for a specifically authorized engagement.
+authorization: red_team
+
+testing:
+  passive: true
+  safe_active: true
+  validation: true
+  intrusive: false        # opt-in only, for an authorized engagement
+  destructive: false      # never automatic; separate written authorization required
+
+dos:
+  enabled: false          # DoS-resilience assessment only, no flooding
+
+social_engineering:
+  enabled: false          # phishing/awareness SIMULATION only, explicit opt-in
+
+performance:
+  workers: 10
+  timeout: 45

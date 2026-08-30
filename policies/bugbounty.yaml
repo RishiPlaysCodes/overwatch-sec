@@ -1,0 +1,20 @@
+# Bug-bounty policy — SAFE BY DEFAULT.
+# Most programs forbid intrusive/automated exploitation and DoS.
+authorization: bug_bounty
+
+testing:
+  passive: true
+  safe_active: true
+  validation: false      # deep mode may enable safe validation per policy
+  intrusive: false
+  destructive: false
+
+dos:
+  enabled: false          # never; DoS-resilience assessment only
+
+social_engineering:
+  enabled: false          # simulation only, and only with explicit authorization
+
+performance:
+  workers: 8
+  timeout: 30

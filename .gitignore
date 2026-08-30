@@ -15,3 +15,8 @@ report/
 # Test fixtures
 _fixtures/
 _testserver.py
+
+
+# platform runtime
+.setup-done
+*.pyc

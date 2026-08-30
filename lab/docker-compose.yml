@@ -1,0 +1,28 @@
+# Local, isolated vulnerable test lab — SAFE targets you fully own.
+# Bind only to localhost. Never expose these to a network.
+#
+#   cd lab && docker compose up -d
+#   python3 ../vulnscan.py http://127.0.0.1:8000 --profile web --yes
+#   python3 ../vulnscan.py http://127.0.0.1:3000 --profile web --yes   # juice-shop
+#
+services:
+  # our tiny stdlib demo app (no image build needed if you prefer: python3 lab/app.py)
+  demo:
+    image: python:3.11-slim
+    command: ["python3", "/app/app.py"]
+    volumes:
+      - ./app.py:/app/app.py:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  # OWASP Juice Shop — the classic intentionally-vulnerable web app
+  juice-shop:
+    image: bkimminich/juice-shop
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  # DVWA — Damn Vulnerable Web Application
+  dvwa:
+    image: vulnerables/web-dvwa
+    ports:
+      - "127.0.0.1:8080:80"
