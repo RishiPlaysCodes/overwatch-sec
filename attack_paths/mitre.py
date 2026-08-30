@@ -44,9 +44,15 @@ TECHNIQUE_MAP = {
     "mobile.exported":     ("T1409", "Stored Application Data", "collection"),
     "mobile.cleartext":    ("T1040", "Network Sniffing", "credential-access"),
     "mobile.debuggable":   ("T1626", "Abuse Elevation Control Mechanism", "privilege-escalation"),
-    # config / info
-    "web.header":          ("T1595", "Active Scanning", "reconnaissance"),
-    "web.infoleak":        ("T1592", "Gather Victim Host Information", "reconnaissance"),
+    # config / hardening gaps — mapped to the technique they FACILITATE (defense gap),
+    # not to attacker recon. Specific headers map to the attack they enable.
+    "web.header.xfo":      ("T1185", "Browser Session Hijacking", "collection"),        # clickjacking enabler
+    "web.header.hsts":     ("T1557", "Adversary-in-the-Middle", "credential-access"),   # SSL-strip enabler
+    "web.header.csp":      ("T1059.007", "JavaScript", "execution"),                    # XSS execution enabler
+    "web.header.nosniff":  ("T1059.007", "JavaScript", "execution"),                    # MIME-sniff XSS enabler
+    # web.header.referrer / .permissions are privacy/hardening gaps with no clean
+    # ATT&CK technique — intentionally left UNMAPPED (CWE/OWASP only in the KB).
+    "web.infoleak":        ("T1592.002", "Gather Victim Host Information: Software", "reconnaissance"),
     "recon.dir_listing":   ("T1083", "File and Directory Discovery", "discovery"),
     # API
     "api.no_auth":         ("T1190", "Exploit Public-Facing Application", "initial-access"),
@@ -78,14 +84,23 @@ TACTIC_ORDER = [
 ]
 
 
+# finding-id prefixes that are hardening/privacy gaps with no honest ATT&CK
+# technique — we deliberately DO NOT invent a mapping for these.
+_UNMAPPED_PREFIXES = ("web.header.referrer", "web.header.permissions", "availability.")
+
+
 def technique_for(finding_id: str):
     if finding_id in TECHNIQUE_MAP:
         return TECHNIQUE_MAP[finding_id]
-    # prefix match (e.g. web.header.csp -> web.header)
+    if any(finding_id.startswith(p) for p in _UNMAPPED_PREFIXES):
+        return None
+    # longest-prefix match (e.g. web.header.csp before web.header)
+    best = None
     for key, val in TECHNIQUE_MAP.items():
         if finding_id.startswith(key):
-            return val
-    return None
+            if best is None or len(key) > len(best[0]):
+                best = (key, val)
+    return best[1] if best else None
 
 
 def annotate(findings) -> None:

@@ -257,30 +257,43 @@ def build_paths(findings, target: str) -> list[dict]:
             "unvalidated_assumptions": pc["assumptions"],
         })
 
-    # per-asset fallback observations for findings that reached no objective
-    covered_assets = {p["asset"] for p in out}
+    # Findings that reached NO objective are NOT a kill-chain. We do not invent a
+    # multi-step "attack path" out of unrelated config/recon findings (that was
+    # misleading). We only build a fallback path when a finding is a *plausible
+    # initial-access foothold* (has an objective mapping) — otherwise findings are
+    # left to the report's normal findings list as standalone observations.
+    covered = set()
+    for p in out:
+        for s in p["steps"]:
+            covered.add((p["asset"], s["id"]))
+
     by_asset = {}
     for f in findings:
         by_asset.setdefault(f.asset or target, []).append(f)
+
     for asset, fs in by_asset.items():
-        if asset in covered_assets:
-            continue
-        ordered = sorted(fs, key=lambda f: TACTIC_ORDER.index(tactic_of(f.id))
-                         if tactic_of(f.id) in TACTIC_ORDER else 99)
-        steps = [{"tactic": tactic_of(f.id), "technique": (f.mitre or [""])[0],
-                  "finding": f.title, "id": f.id, "severity": f.severity, "kev": f.kev,
-                  "validation": f.validation, "confidence": step_confidence(f.validation)} for f in ordered]
-        chain = ["Internet", f"asset: {asset}"] + [f"[{s['confidence']}] {s['tactic']}: {s['finding']}" for s in steps]
-        base = max(_SEV_W.get(f.severity, 1) for f in fs)
-        kev = 25 if any(f.kev for f in fs) else 0
-        cvss = max([(f.cvss or 0) for f in fs]) * 1.5
-        pc = _path_confidence(steps)
-        out.append({"asset": asset, "entry": any(s["tactic"] in ("initial-access", "execution", "reconnaissance")
-                                                  for s in steps),
-                    "length": len(steps), "risk_score": round(min(base + kev + cvss, 100), 1),
-                    "steps": steps, "chain": " -> ".join(chain), "objective": "", "multi_asset": False,
-                    "path_confidence": pc["label"], "confirmed_steps": pc["confirmed"],
-                    "unvalidated_assumptions": pc["assumptions"]})
+        # only findings that grant an objective (real exploitation potential) and
+        # aren't already part of a built path become single-step "paths"
+        for f in fs:
+            if (asset, f.id) in covered:
+                continue
+            if _objective_for(f.id) is None:
+                continue  # config/recon-only finding -> not an attack path
+            obj = _objective_for(f.id)
+            step = {"tactic": tactic_of(f.id), "technique": (f.mitre or [""])[0],
+                    "finding": f.title, "id": f.id, "severity": f.severity, "kev": f.kev,
+                    "validation": f.validation, "confidence": step_confidence(f.validation)}
+            chain = ["Internet", f"asset: {asset}",
+                     f"[{step['confidence']}] {step['tactic']}: {f.title}", f"🎯 {obj[0]}"]
+            base = _SEV_W.get(f.severity, 1)
+            kev = 25 if f.kev else 0
+            cvss = (f.cvss or 0) * 1.5
+            pc = _path_confidence([step])
+            out.append({"asset": asset, "entry": True, "length": 1,
+                        "risk_score": round(min(base + kev + cvss + obj[1] * 5, 100), 1),
+                        "steps": [step], "chain": " -> ".join(chain), "objective": obj[0],
+                        "multi_asset": False, "path_confidence": pc["label"],
+                        "confirmed_steps": pc["confirmed"], "unvalidated_assumptions": pc["assumptions"]})
 
     out.sort(key=lambda p: (0 if p.get("objective") else 1, -p["risk_score"], -p["length"]))
     return out

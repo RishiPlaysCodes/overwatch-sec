@@ -42,23 +42,51 @@ def _counts(findings) -> dict:
     return c
 
 
+_VALIDATED_STATES = {"validated", "exploitable"}
+
+
+def posture_rating(assessment) -> str:
+    """A qualitative posture label from severity mix + KEV + validated exposure."""
+    active = _active(assessment.findings)
+    c = _counts(active)
+    kev = any(f.kev for f in active)
+    # a CONFIRMED exploitable path (validated finding that grants an objective) is worst
+    confirmed_path = any(p.get("path_confidence") == "CONFIRMED" and p.get("objective")
+                         for p in assessment.attack_paths)
+    if c["critical"] or kev or confirmed_path:
+        return "CRITICAL"
+    if c["high"]:
+        return "AT RISK"
+    if c["medium"]:
+        return "NEEDS ATTENTION"
+    if c["low"] or c["info"]:
+        return "HARDENING RECOMMENDED"
+    return "NO ISSUES DETECTED (in tested scope)"
+
+
 def summarize(assessment) -> dict:
     fs = assessment.findings
     active = _active(fs)
     counts = _counts(fs)
     kev = [f for f in active if f.kev]
+    validated = [f for f in active if f.validation in _VALIDATED_STATES]
+    real_paths = [p for p in assessment.attack_paths if p.get("objective")]
+    confirmed_paths = [p for p in real_paths if p.get("path_confidence") == "CONFIRMED"]
     return {
         "target": assessment.target,
         "kind": assessment.kind,
         "profile": assessment.profile,
         "mode": assessment.mode,
+        "posture": posture_rating(assessment),
         "security_score": security_score(fs),
         "counts": counts,
         "total": len(active),
         "muted": len(fs) - len(active),
         "kev_count": len(kev),
-        "attack_paths": len(assessment.attack_paths),
-        "top_attack_risk": (assessment.attack_paths[0]["risk_score"] if assessment.attack_paths else 0),
+        "validated_count": len(validated),
+        "attack_paths": len(real_paths),               # only paths that reach an objective
+        "confirmed_paths": len(confirmed_paths),        # independently validated end-to-end
+        "top_attack_risk": (real_paths[0]["risk_score"] if real_paths else 0),
         "out_of_scope_dropped": len(assessment.out_of_scope_dropped),
     }
 
@@ -104,17 +132,41 @@ def write_markdown(assessment, path: str) -> str:
     L.append(f"- **Scope:** {assessment.scope.describe()}")
     L.append("")
     L.append("## Executive summary\n")
+    L.append(f"**Security posture: {s['posture']}**  —  security score {s['security_score']}/100.\n")
+    # one-line narrative
+    if s["total"] == 0:
+        L.append("No issues were detected within the tested scope for the checks that ran. "
+                 "This is a point-in-time result, not a guarantee of security.\n")
+    else:
+        val = (f"{s['validated_count']} were independently validated; "
+               if s["validated_count"] else "")
+        L.append(f"The assessment surfaced **{s['total']} finding(s)** "
+                 f"(critical {s['counts']['critical']}, high {s['counts']['high']}, "
+                 f"medium {s['counts']['medium']}, low {s['counts']['low']}, info {s['counts']['info']}). "
+                 f"{val}the remainder are detections requiring manual confirmation.\n")
+    L.append(f"- **Posture:** {s['posture']}")
     L.append(f"- **Security score:** {s['security_score']}/100")
-    L.append(f"- **Findings:** {s['total']}  "
+    L.append(f"- **Findings (active):** {s['total']}  "
              f"(critical {s['counts']['critical']}, high {s['counts']['high']}, "
              f"medium {s['counts']['medium']}, low {s['counts']['low']}, info {s['counts']['info']})")
-    L.append(f"- **Actively exploited (CISA KEV):** {s['kev_count']}")
-    L.append(f"- **Attack paths:** {s['attack_paths']} (top risk {s['top_attack_risk']}/100)")
+    L.append(f"- **Independently validated:** {s['validated_count']}")
+    L.append(f"- **Actively exploited (CISA KEV):** {s['kev_count']}"
+             + ("  ⚠️ patch these first" if s["kev_count"] else ""))
+    if s["attack_paths"]:
+        L.append(f"- **Attack paths to a high-value objective:** {s['attack_paths']} "
+                 f"(top risk {s['top_attack_risk']}/100; {s['confirmed_paths']} end-to-end CONFIRMED)")
+    else:
+        L.append("- **Attack paths to a high-value objective:** none correlated "
+                 "(config/recon findings are listed individually, not chained)")
+    if s["muted"]:
+        L.append(f"- **Triaged-out (false-positive/fixed/accepted/out-of-scope):** {s['muted']}")
     if s["out_of_scope_dropped"]:
         L.append(f"- **Out-of-scope assets dropped:** {s['out_of_scope_dropped']}")
     L.append("")
-    if any(f.kev for f in fs):
-        L.append("> ⚠️ **Patch first:** findings tied to actively-exploited CVEs (CISA KEV) below.\n")
+    if s["kev_count"]:
+        L.append("> ⚠️ **Priority:** one or more findings are tied to CVEs on the CISA Known "
+                 "Exploited Vulnerabilities (KEV) catalog — i.e. observed being exploited in the "
+                 "wild. Remediate these first.\n")
 
     # indicator classification (vuln / misconfig / threat indicator / active compromise)
     try:
@@ -133,11 +185,18 @@ def write_markdown(assessment, path: str) -> str:
         pass
 
     L.append("## Attack paths\n")
-    if not assessment.attack_paths:
-        L.append("_No multi-step attack paths correlated._\n")
-    L.append("_Each step is tagged **CONFIRMED** (independently validated), **ASSUMED** "
-             "(detected, plausible but unproven), or **UNVALIDATED** (checked/blocked)._\n")
-    for i, p in enumerate(assessment.attack_paths[:10], 1):
+    real_paths = [p for p in assessment.attack_paths if p.get("objective")]
+    if not real_paths:
+        L.append("_No attack path reaching a high-value objective was correlated from the "
+                 "current findings. Configuration/recon findings are reported individually below "
+                 "rather than chained into a hypothetical kill-chain._\n")
+    else:
+        L.append("_Only chains that reach a concrete objective are shown. Each step is tagged "
+                 "**CONFIRMED** (independently validated), **ASSUMED** (detected, plausible but "
+                 "unproven), or **UNVALIDATED** (checked/blocked). A path is only as strong as its "
+                 "weakest step — ASSUMED/UNVALIDATED steps are hypotheses to verify manually._\n")
+    assessment_paths_for_report = real_paths
+    for i, p in enumerate(assessment_paths_for_report[:10], 1):
         obj = f" → 🎯 **{p['objective']}**" if p.get("objective") else ""
         multi = " (multi-asset / lateral)" if p.get("multi_asset") else ""
         pc = p.get("path_confidence", "ASSUMED")
@@ -343,9 +402,11 @@ pre{{background:#16212c;padding:16px;border-radius:8px;overflow:auto;white-space
 &nbsp;|&nbsp; Scope: {esc(assessment.scope.describe())}</div></header>
 <div class="wrap">
 <h2>Executive summary</h2>
-<div>Security score: <span class="score">{score}</span> / 100 &nbsp;&nbsp;
-Actively-exploited (KEV): <b>{s['kev_count']}</b> &nbsp;|&nbsp; Attack paths: <b>{s['attack_paths']}</b>
-(top risk {s['top_attack_risk']}/100)</div>
+<div>Posture: <b style="color:{score_color}">{esc(s['posture'])}</b> &nbsp;|&nbsp;
+Security score: <span class="score">{score}</span> / 100 &nbsp;&nbsp;
+Validated: <b>{s['validated_count']}</b> &nbsp;|&nbsp;
+Actively-exploited (KEV): <b>{s['kev_count']}</b> &nbsp;|&nbsp;
+Attack paths to objective: <b>{s['attack_paths']}</b> ({s['confirmed_paths']} CONFIRMED)</div>
 <div class="cards">{cards}</div>
 <h2>Attack paths</h2>
 <p><a href="attack-graph.html" style="color:#7fd1ff">▶ Open the interactive attack graph »</a> (click nodes to drill down, filter by severity)</p>
