@@ -104,6 +104,12 @@ def cmd_list_knowledge() -> int:
     return 0
 
 
+def cmd_gap_analysis() -> int:
+    from core import gap_analysis
+    print(gap_analysis.render())
+    return 0
+
+
 # map a detected target kind -> the install.sh group that provides its tools
 KIND_INSTALL_GROUP = {
     "web": "web", "api": "web", "recon": "recon", "network": "network",
@@ -309,6 +315,9 @@ def main() -> int:
     ap.add_argument("--list-capabilities", action="store_true")
     ap.add_argument("--list-knowledge", action="store_true",
                     help="show the security-knowledge catalog (families, counts, domain coverage)")
+    ap.add_argument("--gap-analysis", dest="gap_analysis", action="store_true",
+                    help="show the capability/gap matrix derived from code (knowledge→detection→"
+                         "validation→checker), incl. honest manual/uncovered gaps")
     ap.add_argument("--install", nargs="*", metavar="GROUP", default=None,
                     help="install all external scanners in one shot, then exit "
                          "(optionally limit to groups: recon web network mobile cloud code container)")
@@ -332,6 +341,8 @@ def main() -> int:
         return cmd_list_capabilities()
     if args.list_knowledge:
         return cmd_list_knowledge()
+    if args.gap_analysis:
+        return cmd_gap_analysis()
     if args.install is not None:
         return cmd_install(args.install)
     if args.update or args.check_updates:

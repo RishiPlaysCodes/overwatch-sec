@@ -4,7 +4,11 @@ This document is an **honest, code-verified** audit of what the platform actuall
 does — not what documentation claims. Every row was checked against the real
 execution path (CLI → orchestrator → capability selection → scanner/validator →
 finding → correlation → report) and against the test suite (`python3 tests/run_tests.py`,
-currently **98/98 passing**, plus the lab-driven pipeline test).
+currently **103/103 passing**, plus the lab-driven pipeline test).
+
+> Measured snapshot: **133 KB definitions / 22 families**, **31 validation
+> capabilities** (6 automated safe checkers, 25 honest MANUAL/gated), CI/CD + IaC
+> analyzers running dependency-free. Run `--gap-analysis` for the live matrix.
 
 Status legend:
 
@@ -59,7 +63,8 @@ Status legend:
 | Container / Kubernetes | ✅ 🔌 | `scanner_container.py`/`scanner_kubernetes.py` + trivy/checkov |
 | Mobile (manifest/perms/exported/secrets/cleartext/backup/debug) | ✅ 🔌 | `scanner_mobile.py` + apkleaks/apktool |
 | Source / SCA / secrets | ✅ 🔌 | `scanner_code.py` + semgrep/gitleaks/grype/osv |
-| CI/CD, IaC | 🧠 | KB-backed; detection depends on IaC/pipeline scanner or import |
+| **CI/CD pipeline security** | ✅ | `analyzers/cicd.py` — dependency-free static analysis of GitHub Actions / GitLab CI / Jenkins: excessive permissions, `pull_request_target` PR-checkout, script injection, unpinned actions, secret exposure. Runs via `scanner_code` + orchestrator; tested |
+| **IaC security** | ✅ | `analyzers/iac.py` — dependency-free analysis of Dockerfiles / Terraform / Kubernetes YAML: public exposure, hardcoded secrets, insecure defaults, privileged/hostPath/hostNet, RBAC wildcards. Tested end-to-end |
 | Database, crypto/TLS | ✅ 🧠 | TLS via testssl; DB exposure/creds + crypto weaknesses KB-backed |
 | Memory/binary safety | 🧠 | reasoned via CVE/SAST — **no direct binary fuzzing** (stated in KB) |
 | Wireless / IoT | 🧠 🔒 | KB-backed; active wireless is intrusive/authorized-only |
@@ -88,6 +93,7 @@ Status legend:
 | Availability/resilience (passive) + bounded opt-in lab load-test | ✅ 🔒 | `validation/resilience.py`,`loadtest.py`; never a DoS/flood |
 | Reports: md/json/csv/html/sarif/pdf + bundle | ✅ | `reporting/*`; tested |
 | **Measurable coverage**: stages, tools, ATT&CK, **validation coverage**, **per-domain matrix** | ✅ | `core/coverage.py` + `core/knowledge.coverage_by_domain`; in report + console + json |
+| **Automatic gap detection** — machine-readable capability matrix (knowledge→detection→validation→checker) | ✅ | `core/gap_analysis.py` + `--gap-analysis`; flags KB-without-detection, capability-without-checker (MANUAL), orphan validators. Prevents silent incompleteness |
 | Security score + qualitative posture | ✅ | `reporting/report.py`; config-only findings don't fake attack paths |
 
 ## Platform hardening & tests
@@ -111,7 +117,11 @@ Status legend:
 | Direct binary/memory fuzzing | ❌ NOT_APPLICABLE | Out of scope; memory classes reasoned via CVE/SAST |
 | Active wireless/IoT RF testing | 🔒 BLOCKED_FOR_SAFETY / 🔌 | Requires authorized RF access + intrusive policy |
 | Live DoS/stress | 🔒 BLOCKED_FOR_SAFETY | Only bounded, opt-in, lab-gated resilience checks |
-| Full CI/CD & IaC scanners | 🧠 KNOWLEDGE | Knowledge modelled; dedicated scanners/imports are the next build increment |
+| CI/CD & IaC static analysis | ✅ IMPLEMENTED_AND_TESTED | `analyzers/cicd.py` + `analyzers/iac.py`; dependency-free, real findings in the pipeline |
+| Cloud/DB/mobile-dynamic/wireless live adapters | 🔌 REQUIRES_AUTHORIZED_CREDENTIALS / REQUIRES_SPECIAL_HARDWARE | Read-only assessment needs supplied creds; wireless needs RF hardware + authorization |
+| Deep injection/RCE auto-validation | 🔒 INTENTIONALLY_BLOCKED_FOR_SAFETY | Controlled validation only; classes gated at intrusive, no auto-exploitation |
 
 Nothing above is a hidden TODO on a *claimed* capability: each is either
-implemented, safely gated, external-data dependent, or explicitly manual.
+implemented, safely gated, external-data/credential/hardware dependent, or
+explicitly manual. Run `python3 vulnscan.py --gap-analysis` for the live,
+code-derived matrix.

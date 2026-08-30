@@ -21,13 +21,21 @@ python3 vulnscan.py --list-profiles | --list-tools | --dry-run | --version
 python3 vulnscan.py --install                # one-shot: install all external scanners
 python3 vulnscan.py --list-knowledge         # knowledge catalog + per-domain coverage
 python3 vulnscan.py --list-capabilities      # validation capabilities (risk + prerequisites)
+python3 vulnscan.py --gap-analysis           # code-derived capability/gap matrix (honest)
 ```
 
-**Knowledge & coverage:** 131 vulnerability definitions across 22 attack families
+**Knowledge & coverage:** 133 vulnerability definitions across 22 attack families
 (CWE/OWASP/CAPEC + attack scenario + fix), evidence-graded threat classification,
 and **measurable coverage** — validation coverage (selected/executed/validated/
 refuted/manual + why anything was *not* run) and a **per-domain coverage matrix**
 in every report. Never a fabricated percentage, never "100% secure".
+
+**CI/CD & IaC (dependency-free):** scanning a repo (`vulnscan ./repo`) statically
+analyzes **GitHub Actions / GitLab CI / Jenkins** (excessive permissions,
+`pull_request_target` PR-checkout, script injection, unpinned actions, secret
+exposure) and **Dockerfiles / Terraform / Kubernetes YAML** (public exposure,
+hardcoded secrets, privileged/hostPath/hostNet, RBAC wildcards) — real findings
+in the same pipeline, no external tools needed.
 
 📚 **Docs:** [INSTALL](INSTALL.md) · [USAGE](USAGE.md) · [ARCHITECTURE](ARCHITECTURE.md) · [SECURITY](SECURITY.md) · [IMPLEMENTATION MATRIX](docs/IMPLEMENTATION_MATRIX.md)
 

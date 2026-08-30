@@ -215,6 +215,20 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         else:
             cov.tools_executed.append(t.get("tool", "?"))
 
+    # repo-level CI/CD + IaC static analysis (dependency-free) for local directories.
+    # scanner_code already runs these for 'code' targets; run them here for cloud/
+    # kubernetes/container dir targets so a repo gets CI/CD + IaC coverage regardless
+    # of how the directory was classified. dedupe() removes any overlap.
+    if kind in ("cloud", "kubernetes", "container") and os.path.isdir(target):
+        for amod, label in (("analyzers.cicd", "cicd_analysis"), ("analyzers.iac", "iac_analysis")):
+            try:
+                m = importlib.import_module(amod)
+                extra = m.analyze_dir(target)
+                raw.setdefault("findings", []).extend(extra)
+                cov.ran(label, detail=f"{len(extra)} finding(s)")
+            except Exception as e:
+                cov.errored(label, detail=str(e)[:120])
+
     # availability & resilience assessment (safe, passive) for network-facing web/api
     if kind in ("web", "api", "recon"):
         try:

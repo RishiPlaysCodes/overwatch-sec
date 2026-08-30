@@ -105,6 +105,32 @@ def scan(target: str, outdir: str, skip: set[str]) -> dict:
     result["findings"] += secrets
     ok(f"secret sweep found {len(secrets)} candidate(s)")
 
+    # Built-in CI/CD pipeline analysis (dependency-free, always runs)
+    banner("CODE — CI/CD pipeline analysis")
+    try:
+        from analyzers import cicd as _cicd
+        cf = _cicd.analyze_dir(target)
+        result["findings"] += cf
+        result["tools"].append({"tool": "cicd-analyzer", "status": "done"})
+        ok(f"CI/CD analysis: {len(cf)} finding(s)"
+           + ("" if _cicd.files_present(target) else " (no CI/CD files found)"))
+    except Exception as e:
+        result["tools"].append({"tool": "cicd-analyzer", "status": f"error: {str(e)[:60]}"})
+        warn(f"CI/CD analysis error: {e}")
+
+    # Built-in IaC analysis (Dockerfiles / Terraform / Kubernetes YAML; dependency-free)
+    banner("CODE — IaC analysis (Dockerfile / Terraform / Kubernetes)")
+    try:
+        from analyzers import iac as _iac
+        iaf = _iac.analyze_dir(target)
+        result["findings"] += iaf
+        result["tools"].append({"tool": "iac-analyzer", "status": "done"})
+        ok(f"IaC analysis: {len(iaf)} finding(s)"
+           + ("" if _iac.files_present(target) else " (no IaC files found)"))
+    except Exception as e:
+        result["tools"].append({"tool": "iac-analyzer", "status": f"error: {str(e)[:60]}"})
+        warn(f"IaC analysis error: {e}")
+
     # SCA / dependency CVE tools
     stages = [
         ("osv-scanner", ["osv-scanner", "--recursive", target], "osv-scanner.txt", 900,

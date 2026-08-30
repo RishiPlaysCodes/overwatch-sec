@@ -1494,6 +1494,32 @@ KB: dict[str, dict] = {
         "patch": "Pin actions/images to a full commit SHA / digest, review third-party code, and mirror "
         "trusted copies.",
     },
+    "cicd.pr_target_checkout": {
+        "cwe": "CWE-829",
+        "owasp": "A08:2021 Software & Data Integrity Failures",
+        "capec": ["CAPEC-442"],
+        "severity": "high",
+        "title": "pull_request_target checks out untrusted PR code",
+        "description": "A GitHub Actions workflow triggered by `pull_request_target` (which runs with repo "
+        "secrets + a write token) checks out and/or executes code from the pull request.",
+        "attack": "An attacker opens a PR whose code runs in the privileged `pull_request_target` context, "
+        "exfiltrating repository secrets or pushing to the repo — a well-known CI supply-chain takeover.",
+        "patch": "Don't check out/execute PR code under `pull_request_target`; use `pull_request`, split "
+        "privileged steps into a separate gated workflow, and never expose secrets to untrusted PRs.",
+    },
+    "cicd.script_injection": {
+        "cwe": "CWE-94",
+        "owasp": "A03:2021 Injection",
+        "capec": ["CAPEC-88"],
+        "severity": "high",
+        "title": "Script injection via untrusted CI expression",
+        "description": "Untrusted context (e.g. `${{ github.event.* }}` — PR title/body/branch) is "
+        "interpolated directly into a shell `run:` step.",
+        "attack": "An attacker crafts the PR title/branch to inject shell commands that execute on the "
+        "runner with the workflow's token/secrets.",
+        "patch": "Never interpolate untrusted context into `run:`; pass it via an intermediate `env:` variable "
+        "and reference it quoted, or use an action input with validation.",
+    },
 
     # ============================ IaC (Terraform / CFN / manifests) ========
     "iac.public_exposure": {
