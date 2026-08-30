@@ -8,9 +8,11 @@
 #
 # Usage:
 #   chmod +x install.sh
-#   ./install.sh              # install everything (web + mobile + cloud)
-#   ./install.sh web          # only web tools
-#   ./install.sh web mobile   # web + mobile
+#   ./install.sh                 # install everything (recon web network mobile cloud code)
+#   ./install.sh recon           # only bug-bounty recon tools
+#   ./install.sh recon web       # pick groups
+#
+# Groups: recon | web | network | mobile | cloud | code | container
 #
 set -uo pipefail
 
@@ -36,10 +38,24 @@ fi
 
 # ---- which groups to install ---------------------------------------------
 GROUPS=("$@")
-if [ ${#GROUPS[@]} -eq 0 ]; then GROUPS=(web mobile cloud); fi
+if [ ${#GROUPS[@]} -eq 0 ]; then GROUPS=(recon web network mobile cloud code); fi
 want() { for g in "${GROUPS[@]}"; do [ "$g" = "$1" ] && return 0; done; return 1; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# go install helper (many recon tools are Go binaries) ----------------------
+go_install() {
+  # $1 = binary name to check, $2 = go module path
+  if have "$1"; then ok "$1 already present"; return 0; fi
+  if have go; then
+    info "go install $2 …"
+    GOBIN="$HOME/go/bin" go install "$2" >/dev/null 2>&1 \
+      && ok "$1 installed (ensure \$HOME/go/bin is on PATH)" \
+      || warn "go install failed for $1"
+  else
+    warn "$1 not installed (needs Go; 'sudo apt install golang-go')"
+  fi
+}
 
 # pip flag for Kali's externally-managed environment (PEP 668)
 PIP_FLAG=""
@@ -89,6 +105,46 @@ if want web; then
   apt_install testssl.sh
 fi
 
+# ---- RECON (bug bounty) ---------------------------------------------------
+if want recon; then
+  title "Recon tools (subfinder, httpx, naabu, dnsx, katana, nuclei, ffuf, gau, gowitness, amass, wafw00f)"
+  # Kali often packages some of these; try apt first, then go install.
+  apt_install amass wafw00f ffuf assetfinder seclists
+  # ProjectDiscovery + friends via go
+  go_install subfinder   "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+  go_install httpx       "github.com/projectdiscovery/httpx/cmd/httpx@latest"
+  go_install naabu       "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+  go_install dnsx        "github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+  go_install katana      "github.com/projectdiscovery/katana/cmd/katana@latest"
+  go_install nuclei      "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+  go_install gau         "github.com/lc/gau/v2/cmd/gau@latest"
+  go_install waybackurls "github.com/tomnomnom/waybackurls@latest"
+  go_install gowitness   "github.com/sensepost/gowitness@latest"
+  if have nuclei; then info "updating nuclei templates…"; nuclei -update-templates >/dev/null 2>&1 && ok "nuclei templates updated"; fi
+  info "Tip: install 'seclists' for content-discovery wordlists (used in --deep)."
+fi
+
+# ---- NETWORK --------------------------------------------------------------
+if want network; then
+  title "Network tools (nmap, searchsploit/exploitdb)"
+  apt_install nmap exploitdb
+  info "Tip: install Greenbone/OpenVAS (gvm) separately for deep authenticated NVT scans."
+fi
+
+# ---- CODE / SCA -----------------------------------------------------------
+if want code; then
+  title "Code / SCA tools (semgrep, pip-audit, gitleaks, grype, osv-scanner, trivy)"
+  pip_install semgrep pip-audit && ok "python SCA tools installed" || warn "some python SCA tools failed"
+  apt_install gitleaks
+  go_install osv-scanner "github.com/google/osv-scanner/cmd/osv-scanner@latest"
+  if ! have grype; then
+    info "installing grype…"
+    curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | $SUDO sh -s -- -b /usr/local/bin >/dev/null 2>&1 \
+      && ok "grype installed" || warn "grype install failed (see github.com/anchore/grype)"
+  fi
+  apt_install trivy || warn "trivy not in apt — see github.com/aquasecurity/trivy/releases"
+fi
+
 # ---- MOBILE ---------------------------------------------------------------
 if want mobile; then
   title "Mobile tools (apkleaks, apktool, jadx)"
@@ -109,13 +165,21 @@ fi
 # ---- summary --------------------------------------------------------------
 title "Verification"
 check() { if have "$1"; then ok "$1 ✓"; else warn "$1 — not installed (vulnscan will skip it)"; fi; }
-want web    && for t in nmap nikto sqlmap whatweb nuclei testssl.sh; do check "$t"; done
-want mobile && for t in apkleaks apktool jadx; do check "$t"; done
-want cloud  && for t in checkov prowler scout trivy; do check "$t"; done
+want recon   && for t in subfinder httpx naabu dnsx katana nuclei ffuf gau gowitness amass wafw00f; do check "$t"; done
+want web     && for t in nmap nikto sqlmap whatweb nuclei testssl.sh; do check "$t"; done
+want network && for t in nmap searchsploit; do check "$t"; done
+want mobile  && for t in apkleaks apktool jadx; do check "$t"; done
+want cloud   && for t in checkov prowler scout trivy; do check "$t"; done
+want code    && for t in semgrep pip-audit gitleaks grype osv-scanner trivy; do check "$t"; done
+
+if have go && ! echo ":$PATH:" | grep -q ":$HOME/go/bin:"; then
+  echo; warn "Add Go binaries to your PATH so recon tools are found:"
+  echo -e "   ${BOLD}echo 'export PATH=\$PATH:\$HOME/go/bin' >> ~/.bashrc && source ~/.bashrc${Z}"
+fi
 
 echo
 ok "Setup complete. Run a scan, e.g.:"
+echo -e "   ${BOLD}python3 vulnscan.py --type recon example.com${Z}   ${C}# bug-bounty recon${Z}"
 echo -e "   ${BOLD}python3 vulnscan.py https://your-site.com${Z}"
 echo -e "   ${BOLD}python3 vulnscan.py ./app.apk${Z}"
-echo -e "   ${BOLD}python3 vulnscan.py ./terraform/${Z}"
-warn "Authorized targets only."
+warn "Authorized / in-scope targets only. Detection & recon — no auto-exploitation."

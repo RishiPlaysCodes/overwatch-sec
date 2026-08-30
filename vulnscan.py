@@ -47,6 +47,7 @@ import scanner_code
 import scanner_container
 import scanner_mobile
 import scanner_network
+import scanner_recon
 import scanner_web
 
 SEVERITIES = ("critical", "high", "medium", "low", "info")
@@ -103,12 +104,14 @@ DISPATCH = {
     "network": scanner_network.scan,
     "code": scanner_code.scan,
     "container": scanner_container.scan,
+    "recon": scanner_recon.scan,
 }
 
 
 def prompt_for_target() -> str:
     """Interactively ask what to scan when no target is given on the CLI."""
     print(f"\n{C.CYN}{C.BOLD}What do you want to scan?{C.RESET}")
+    print(f"  {C.BOLD}0) Bug-bounty RECON (domain){C.RESET} full attack-surface pipeline (e.g. example.com)")
     print("  1) Website / URL            (e.g. https://example.com)")
     print("  2) Network host / IP / CIDR (e.g. 192.168.1.10 or 192.168.1.0/24)")
     print("  3) Mobile app               (path to .apk / .ipa)")
@@ -117,18 +120,21 @@ def prompt_for_target() -> str:
     print("  6) Cloud IaC folder         (path to terraform/ etc.)")
     print("  7) Live cloud account       (aws / azure / gcp)")
     print(f"{C.BLU}Tip:{C.RESET} you can also just type the target directly.\n")
-    choice = input("Choice [1-7] or target: ").strip()
+    choice = input("Choice [0-7] or target: ").strip()
     hints = {
-        "1": "Enter the URL: ",
-        "2": "Enter host/IP/CIDR: ",
-        "3": "Enter path to .apk/.ipa: ",
-        "4": "Enter path to the code folder: ",
-        "5": "Enter image ref (name:tag): ",
-        "6": "Enter path to the IaC folder: ",
-        "7": "Enter provider (aws/azure/gcp): ",
+        "0": ("Enter root domain (e.g. example.com): ", "recon"),
+        "1": ("Enter the URL: ", None),
+        "2": ("Enter host/IP/CIDR: ", None),
+        "3": ("Enter path to .apk/.ipa: ", None),
+        "4": ("Enter path to the code folder: ", None),
+        "5": ("Enter image ref (name:tag): ", None),
+        "6": ("Enter path to the IaC folder: ", None),
+        "7": ("Enter provider (aws/azure/gcp): ", None),
     }
     if choice in hints:
-        return input(hints[choice]).strip()
+        prompt, forced = hints[choice]
+        tgt = input(prompt).strip()
+        return (forced + ":" + tgt) if forced else tgt   # "recon:domain" signals the profile
     return choice  # user typed the target directly
 
 
@@ -222,17 +228,20 @@ def print_summary(report: dict) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Master multi-target vulnerability scanner "
-                    "(web / mobile / cloud / network / code / container). Authorized use only.")
+        description="Master recon + vulnerability-discovery pipeline "
+                    "(recon / web / mobile / cloud / network / code / container). "
+                    "Authorized use only — detection & recon, no auto-exploitation.")
     ap.add_argument("target", nargs="?", default=None,
                     help="URL | host/IP/CIDR | app.apk/.ipa | dir (IaC or source) | image:tag | aws/azure/gcp "
                          "(omit to be asked interactively)")
-    ap.add_argument("--type", choices=["auto", "web", "mobile", "cloud", "network", "code", "container"],
+    ap.add_argument("--type", choices=["auto", "recon", "web", "mobile", "cloud", "network", "code", "container"],
                     default="auto", help="force target type (default: auto-detect)")
     ap.add_argument("--out", default=None, help="output directory")
     ap.add_argument("--skip", default="", help="comma list of tools to skip")
+    ap.add_argument("--scope", default=None,
+                    help="path to a scope file (one in-scope domain per line) — recon confines hosts to it")
     ap.add_argument("--deep", action="store_true",
-                    help="thorough (slower) mode: enables heavy nmap NSE vuln scripts + more ports")
+                    help="thorough (slower) mode: recon content-discovery/screenshots, heavy nmap NSE, more ports")
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets / CI)")
     args = ap.parse_args()
 
@@ -240,12 +249,20 @@ def main() -> int:
     if not target:
         err("No target given. Nothing to scan.")
         return 2
-    profile = args.type if args.type != "auto" else detect_profile(target)
+
+    # The interactive menu prefixes a forced profile as "recon:<domain>".
+    forced_type = None
+    if ":" in target and target.split(":", 1)[0] in DISPATCH:
+        forced_type, target = target.split(":", 1)
+
+    profile = forced_type or (args.type if args.type != "auto" else detect_profile(target))
     if profile == "web" and not re.match(r"^https?://", target) and target not in ("aws", "azure", "gcp"):
         target = "https://" + target
     skip = {s.strip() for s in args.skip.split(",") if s.strip()}
     if args.deep:
         skip.add("__deep__")   # scanners read this as "thorough mode"
+    if args.scope:
+        skip.add(f"scope={args.scope}")   # recon reads this for in-scope confinement
 
     banner(f"vulnscan — profile detected: {profile.upper()}")
     ok(f"target: {target}")

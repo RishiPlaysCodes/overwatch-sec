@@ -1,11 +1,22 @@
 # vulnscan — Master Multi-Platform Vulnerability Scanner
 
 **One command. One target. Full report.** vulnscan auto-detects your target and
-runs the right suite of checks + industry tools across **six platforms** —
-website, mobile app, cloud/IaC, network/host, source code, and container images.
-Every finding is explained: **what it is**, **how an attacker exploits it**, and
-**how to fix it** — mapped to **OWASP Top 10** and **CWE / SANS Top 25**, and
-(for CVEs) enriched with **CVSS** and the **CISA KEV** actively-exploited flag.
+runs the right suite of checks + industry tools across **seven surfaces** —
+**bug-bounty recon**, website, mobile app, cloud/IaC, network/host, source code,
+and container images. Every finding is explained: **what it is**, **how an
+attacker exploits it**, and **how to fix it** — mapped to **OWASP Top 10** and
+**CWE / SANS Top 25**, and (for CVEs) enriched with **CVSS** and the **CISA KEV**
+actively-exploited flag.
+
+> 🎯 **For bug-bounty / red-team recon:** the `recon` profile chains subdomain
+> enumeration → HTTP probing → port scan → URL collection → content discovery →
+> takeover checks → templated CVE scanning (nuclei) into one command, with
+> **scope control** so you never test out of scope.
+>
+> 🛡️ **Detection & recon only — no auto-exploitation.** It maps attack surface
+> and *finds* issues; it does not auto-exploit, brute-force, run post-exploitation,
+> or perform DoS. Actual exploitation stays manual and per-target — which is also
+> exactly what bug-bounty program rules require.
 
 ## ⚡ Just one command (same on every device)
 
@@ -24,6 +35,7 @@ git clone https://github.com/RishiPlaysCodes/script-test-case.git && cd script-t
 
 Prefer to pass the target directly (it still auto-sets-up once, then auto-detects the type):
 ```bash
+./run.sh --type recon example.com # bug-bounty recon (full attack surface)
 ./run.sh https://example.com      # website
 ./run.sh 192.168.1.0/24           # network / host / CIDR
 ./run.sh ./app.apk                # mobile (APK / IPA)
@@ -31,6 +43,13 @@ Prefer to pass the target directly (it still auto-sets-up once, then auto-detect
 ./run.sh nginx:1.21               # container image
 ./run.sh ./terraform/             # cloud IaC
 ./run.sh aws                      # live cloud account
+```
+
+Bug-bounty recon with a scope file (recommended — confines all hosts to scope):
+```bash
+printf 'example.com\napi.example.com\n' > scope.txt
+./run.sh --type recon example.com --scope scope.txt          # fast
+./run.sh --type recon example.com --scope scope.txt --deep   # thorough (content discovery + screenshots)
 ```
 
 `run.sh` extras: `--setup` (redo tool install), `--update` (refresh feeds now),
@@ -138,6 +157,23 @@ git clone https://github.com/RishiPlaysCodes/script-test-case.git && cd script-t
 
 ## What it covers
 
+### 🎯 Bug-bounty / red-team recon (one command)
+A full attack-surface pipeline that orchestrates the best open-source tools
+(each auto-detected, skipped if missing):
+1. **Subdomain enum** — subfinder, assetfinder, amass (passive)
+2. **Resolve + HTTP probe** — dnsx, httpx (status / title / tech)
+3. **Port / service scan** — naabu (or nmap fallback)
+4. **URL collection** — gau, waybackurls, katana (crawl)
+5. **Content discovery** `[--deep]` — ffuf / feroxbuster (needs a wordlist)
+6. **Screenshots** `[--deep]` — gowitness
+7. **WAF / CMS fingerprint** — wafw00f, wpscan
+8. **Templated vuln scan** — nuclei (CVEs, exposures, subdomain takeovers,
+   misconfig; `dos`/`intrusive` tags excluded)
+
+**Scope control** (`--scope file`) confines every discovered host to in-scope
+domains. CVEs found are enriched with CVSS + CISA KEV. Detection only — no
+auto-exploitation.
+
 ### 🌐 Web (OWASP Top 10 / CWE Top 25)
 Built-in: security headers (CSP, HSTS, X-Frame-Options, nosniff, Referrer,
 Permissions), cookie flags, reflected-input XSS indicator, form + file-upload
@@ -188,7 +224,10 @@ Every discovered CVE is enriched (offline-safe) with:
 | `name:tag` / `repo/app:tag` / `@sha256:` | container |
 | URL or hostname | web |
 
-Force it with `--type {web,mobile,cloud,network,code,container}`.
+For a **domain**, use `--type recon` (or menu option 0) to run the full recon
+pipeline instead of a single-site web scan.
+
+Force it with `--type {recon,web,mobile,cloud,network,code,container}`.
 
 ## Install
 
@@ -252,6 +291,7 @@ vulnscan.py          # entry: detection, auth gate, dispatch, reporting
 common.py            # shared helpers (shell, HTTP, finding builder)
 knowledgebase.py     # every finding: CWE/OWASP + description/attack/patch
 cve_intel.py         # NVD CVSS + CISA KEV enrichment (offline-safe)
+scanner_recon.py     # bug-bounty recon pipeline (subfinder/httpx/naabu/katana/nuclei…)
 scanner_web.py       # website checks + tool wrappers
 scanner_mobile.py    # APK/IPA static analysis
 scanner_cloud.py     # IaC + live-cloud checks/wrappers

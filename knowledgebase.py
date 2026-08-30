@@ -412,6 +412,84 @@ KB: dict[str, dict] = {
         "patch": "Add a non-root USER, drop capabilities, avoid embedding secrets in layers, and use read-only root "
         "filesystems.",
     },
+
+    # ============================ RECON / ATTACK SURFACE (bug bounty) ======
+    "recon.subdomain": {
+        "cwe": "CWE-200",
+        "owasp": "A01:2021 Broken Access Control / Recon",
+        "severity": "info",
+        "title": "Discovered subdomain / asset",
+        "description": "A live subdomain or host belonging to the target was discovered during enumeration.",
+        "attack": "Attackers map every asset first; forgotten/staging/admin subdomains often have weaker security "
+        "than the main site and become the entry point.",
+        "patch": "Maintain an asset inventory, decommission unused hosts, and apply the same security baseline "
+        "(auth, patching, WAF) to every subdomain.",
+    },
+    "recon.subdomain_takeover": {
+        "cwe": "CWE-350",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "high",
+        "title": "Subdomain takeover (dangling DNS)",
+        "description": "A subdomain's DNS points to a de-provisioned third-party service (S3, GitHub Pages, Heroku, "
+        "Azure, etc.) that can be claimed.",
+        "attack": "Attacker registers the unclaimed service resource and serves their own content on your subdomain "
+        "— phishing, cookie theft, or bypassing same-site protections.",
+        "patch": "Remove the dangling DNS record immediately, or re-claim the resource. Audit CNAMEs regularly and "
+        "delete records when services are torn down.",
+    },
+    "recon.exposed_panel": {
+        "cwe": "CWE-284",
+        "owasp": "A01:2021 Broken Access Control",
+        "severity": "medium",
+        "title": "Exposed admin / login / management panel",
+        "description": "An administrative or management interface is reachable from the internet.",
+        "attack": "Attacker finds the panel, then brute-forces credentials, uses default creds, or hits panel-"
+        "specific CVEs to gain privileged access.",
+        "patch": "Restrict panels to VPN/allow-listed IPs, enforce strong auth + MFA, rename default paths, and "
+        "monitor login attempts.",
+    },
+    "recon.dir_listing": {
+        "cwe": "CWE-548",
+        "owasp": "A05:2021 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Directory listing / exposed files",
+        "description": "The server returns directory indexes or content discovery found sensitive files/paths.",
+        "attack": "Attacker browses exposed directories to harvest backups, configs, source, or credentials that "
+        "shouldn't be public.",
+        "patch": "Disable autoindex, remove sensitive files from web roots, and return 404 for non-public paths.",
+    },
+    "recon.js_secret": {
+        "cwe": "CWE-615",
+        "owasp": "A07:2021 Identification & Authentication Failures",
+        "severity": "high",
+        "title": "Secret / endpoint leaked in client-side JS",
+        "description": "Front-end JavaScript exposes API keys, tokens, or internal endpoints.",
+        "attack": "Attacker reads bundled JS, extracts keys/endpoints, and calls internal APIs or abuses the leaked "
+        "credential directly.",
+        "patch": "Never embed secrets client-side; proxy sensitive calls through a backend, rotate exposed keys, and "
+        "restrict keys by origin/scope.",
+    },
+    "recon.interesting_url": {
+        "cwe": "CWE-200",
+        "owasp": "Recon / Information Disclosure",
+        "severity": "info",
+        "title": "Interesting URL / parameter",
+        "description": "Crawling / archive collection surfaced URLs or parameters worth manual review.",
+        "attack": "Attackers mine historical and crawled URLs for parameters vulnerable to injection, IDOR, open "
+        "redirect, or SSRF.",
+        "patch": "Review and validate all parameters server-side; retire legacy endpoints; enforce authorization "
+        "checks on every object reference.",
+    },
+    "recon.waf": {
+        "cwe": "N/A",
+        "owasp": "Recon",
+        "severity": "info",
+        "title": "WAF / security control detected",
+        "description": "A Web Application Firewall or protective control was fingerprinted in front of the target.",
+        "attack": "Attackers profile the WAF to craft bypasses; its presence also tells them which payloads to "
+        "obfuscate.",
+        "patch": "Keep WAF rules tuned and updated; do not rely on it as the only control (defense in depth).",
+    },
 }
 
 
