@@ -108,21 +108,34 @@ class Scope:
             return True
         return False
 
-    def allows(self, asset: str) -> bool:
-        host = _host_of(asset)
-        if not host:
-            return False
-        if self._excluded(host):
-            return False
-        if self.is_empty():
-            return True  # no allow-list configured => permissive (single-target default sets one)
+    def _explicitly_allowed(self, host: str, asset: str) -> bool:
+        """An EXACT allow-list entry (domain / CIDR / wildcard-apex / URL prefix)."""
         if host in self.allowed_domains:
             return True
-        if any(host == w or host.endswith("." + w) for w in self.allowed_wildcards):
+        # a wildcard's own apex counts as explicit (e.g. '*.x.com' allows 'x.com')
+        if any(host == w for w in self.allowed_wildcards):
             return True
         if self._match_nets(host, self.allowed_nets):
             return True
         if any(asset.rstrip("/").startswith(u) for u in self.allowed_urls):
+            return True
+        return False
+
+    def allows(self, asset: str) -> bool:
+        host = _host_of(asset)
+        if not host:
+            return False
+        # An explicit in-scope entry wins over a broader wildcard exclusion.
+        # (e.g. scope: matlab.mathworks.com  +  out_of_scope: *.mathworks.com
+        #  => matlab.mathworks.com stays IN scope, other subdomains OUT.)
+        explicit = self._explicitly_allowed(host, asset)
+        if self._excluded(host) and not explicit:
+            return False
+        if self.is_empty():
+            return True  # no allow-list configured => permissive (single-target default sets one)
+        if explicit:
+            return True
+        if any(host == w or host.endswith("." + w) for w in self.allowed_wildcards):
             return True
         return False
 

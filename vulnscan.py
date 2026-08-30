@@ -198,6 +198,9 @@ def main() -> int:
                     choices=sorted(set(KIND_TO_SCANNER)), default=None,
                     help="force target kind (override auto-detection)")
     ap.add_argument("--scope", default=None, help="scope file (in-scope assets, one per line)")
+    ap.add_argument("--program", default=None,
+                    help="bug-bounty program config (YAML): scope + required headers + rate limit + "
+                         "out-of-scope finding rules. The engine auto-respects all of it.")
     ap.add_argument("--policy", default=None, help="policy YAML file (safety levels)")
     ap.add_argument("--out", default=None, help="output directory")
     ap.add_argument("--formats", default="md,json,html", help="report formats: md,json,csv,html,pdf,sarif")
@@ -378,7 +381,8 @@ def main() -> int:
         outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=force_kind,
         triage_store=triage_store, load_plugins=not args.no_plugins,
         identity_file=args.identity_file, threat_file=args.threat_file, ioc_file=args.ioc_file,
-        telemetry_file=args.telemetry_file, se_file=args.se_file, load_test=args.load_test)
+        telemetry_file=args.telemetry_file, se_file=args.se_file, load_test=args.load_test,
+        program_file=args.program)
 
     # reports
     from reporting import report as report_mod

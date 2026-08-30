@@ -56,6 +56,65 @@ def have(tool: str) -> bool:
     return shutil.which(tool) is not None
 
 
+# ---------------------------------------------------------------------------
+# Global request context — set once by the orchestrator from a program config
+# so EVERY built-in HTTP request carries required headers (e.g. the program's
+# X-Request-Purpose) and respects a polite rate limit. Tools that support custom
+# headers are fed these via header_cli_args().
+# ---------------------------------------------------------------------------
+import threading as _threading
+import time as _time
+
+REQUEST_CONTEXT = {
+    "headers": {},        # extra headers added to every built-in request
+    "min_interval": 0.0,  # seconds between built-in requests (rate limit)
+}
+_rl_lock = _threading.Lock()
+_last_req = [0.0]
+
+
+def set_request_context(headers: dict | None = None, rate_per_min: int | None = None) -> None:
+    """Configure global headers + rate limit for all built-in HTTP requests."""
+    if headers:
+        REQUEST_CONTEXT["headers"] = {str(k): str(v) for k, v in headers.items()}
+    if rate_per_min and rate_per_min > 0:
+        REQUEST_CONTEXT["min_interval"] = 60.0 / float(rate_per_min)
+
+
+def _throttle() -> None:
+    mi = REQUEST_CONTEXT.get("min_interval", 0.0)
+    if mi <= 0:
+        return
+    with _rl_lock:
+        wait = _last_req[0] + mi - _time.time()
+        if wait > 0:
+            _time.sleep(wait)
+        _last_req[0] = _time.time()
+
+
+def header_cli_args(tool: str) -> list[str]:
+    """Return CLI args to pass the program headers to a supporting tool."""
+    hdrs = REQUEST_CONTEXT.get("headers") or {}
+    if not hdrs:
+        return []
+    args = []
+    if tool in ("httpx", "nuclei", "katana"):        # projectdiscovery: -H "K: V"
+        for k, v in hdrs.items():
+            args += ["-H", f"{k}: {v}"]
+    elif tool == "ffuf":
+        for k, v in hdrs.items():
+            args += ["-H", f"{k}: {v}"]
+    elif tool == "nikto":                            # nikto: -H not std; use -useragent only
+        pass
+    elif tool == "sqlmap":
+        for k, v in hdrs.items():
+            args += ["--header", f"{k}: {v}"]
+    elif tool in ("whatweb",):
+        for k, v in hdrs.items():
+            args += [f"--header={k}: {v}"]
+    return args
+
+
 def run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
     """Run a command, capture combined output, never raise."""
     info("running: " + " ".join(cmd))
@@ -99,8 +158,11 @@ def run_live(cmd: list[str], timeout: int = 900) -> int:
 
 
 def http_get(url: str, timeout: int = 15):
-    """Return (status, headers_lowercased, body_text, cookiejar_or_None)."""
+    """Return (status, headers_lowercased, body_text, cookiejar_or_None).
+    Adds program-required headers and respects the configured rate limit."""
     headers = {"User-Agent": "vulnscan/2.0 (+authorized-testing)"}
+    headers.update(REQUEST_CONTEXT.get("headers") or {})
+    _throttle()
     if HAS_REQUESTS:
         r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
         return r.status_code, {k.lower(): v for k, v in r.headers.items()}, r.text, r.cookies

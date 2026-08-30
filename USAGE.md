@@ -225,6 +225,45 @@ python3 vulnscan.py target --retest          # auto-locate baseline + diff, then
 python3 vulnscan.py lab-target --profile lab --policy lab-dos.yaml --load-test
 ```
 
+## Bug bounty — program-aware (one command, rules auto-respected)
+
+Write a program config once (or use a shipped one), then just point at the target.
+The engine reads the program and **auto-respects all of it**: required request
+headers, a polite rate limit, the in-scope boundary, and the finding types the
+program declares out-of-scope (kept but excluded from the score so results focus
+on what pays).
+
+```bash
+python3 vulnscan.py https://matlab.mathworks.com/ \
+    --profile bugbounty --program programs/matlab-bugcrowd.yaml --yes
+```
+
+A program config (`programs/*.yaml`):
+```yaml
+name: My Program
+scope:
+  - example.com
+  - "*.example.com"
+  - "!admin.example.com"
+headers:
+  X-Request-Purpose: BugcrowdResearch    # sent on every request + passed to tools
+rate_per_min: 20                          # polite throttle
+exclude_findings:                         # OOS / not-rewarded -> labelled, not scored
+  - web.header*
+  - web.cookie*
+  - availability*
+focus_findings:                           # prioritized (tagged program:focus)
+  - web.sqli
+  - web.xss*
+```
+
+See `programs/README.md` + `programs/template.yaml`. A plain scope `.txt` also
+works as a minimal program.
+
+> ⚠️ A program config encodes the program's **rules** — it does not grant
+> authorization. Only test what you're permitted to. The automated pass is recon
+> + low-hanging detection; high-value bugs need manual research + a written PoC.
+
 ## Plugins (extend without touching core)
 
 Drop a `plugins/*.py` defining `register(reg)` (see `plugins/README.md`). Loaded

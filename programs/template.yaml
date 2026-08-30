@@ -1,0 +1,30 @@
+# Generic bug-bounty program template — copy and edit for any program.
+#   python3 vulnscan.py https://TARGET --profile bugbounty --program programs/this.yaml --yes
+name: My Program
+
+scope:
+  - example.com
+  - "*.example.com"
+  - "!admin.example.com"       # exclusion
+
+# out_of_scope:                # optional extra host exclusions
+#   - "staging.example.com"
+
+headers:                       # required request headers (sent on all traffic)
+  X-Request-Purpose: BugcrowdResearch
+
+rate_per_min: 30               # polite cap; lower it if the brief is strict
+
+exclude_findings:              # finding types the program won't reward
+  - web.header*
+  - web.cookie*
+  - web.tls*
+  - availability*
+
+focus_findings:                # prioritized areas
+  - web.sqli
+  - web.xss*
+  - api.*
+
+notes: >
+  Automated recon + detection only. Validate and write PoCs manually.

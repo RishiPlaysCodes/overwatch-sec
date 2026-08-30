@@ -1,0 +1,52 @@
+# Bug-bounty program config — MATLAB Online (Bugcrowd).
+# Point the engine at the target with --program and it auto-respects all of this.
+#
+#   python3 vulnscan.py https://matlab.mathworks.com/ \
+#       --profile bugbounty --program programs/matlab-bugcrowd.yaml --yes
+#
+# NOTE: only test with YOUR authorized @bugcrowdninja.com account content, per
+# the program brief. This config encodes the program's rules; it does not grant
+# authorization — that is your responsibility.
+
+name: MATLAB Online (Bugcrowd)
+
+# In-scope: ONLY the production host. Subdomains are explicitly OUT of scope.
+scope:
+  - matlab.mathworks.com
+
+# Everything else at mathworks is out of scope (kept here as a guard).
+out_of_scope:
+  - "*.mathworks.com"
+
+# The program REQUIRES this header on all requests or you get blocked.
+headers:
+  X-Request-Purpose: BugcrowdResearch
+  # X-Bugcrowd-Ninja: your-username        # optional — uncomment + set
+
+# Be polite: the brief warns about excessive requests (LLM: >25/min => blocked).
+rate_per_min: 20
+
+# Finding types the program explicitly declares OUT OF SCOPE / not rewarded.
+# The engine keeps them (labelled) but excludes them from the actionable score,
+# so your results focus on what actually pays.
+exclude_findings:
+  - web.header*          # missing security headers — OOS
+  - web.cookie*          # Secure/HttpOnly flags — OOS
+  - web.tls*             # TLS/SSL config — OOS unless egregious
+  - web.infoleak*        # banner/version disclosure — OOS
+  - availability*        # DoS / rate-limit — OOS
+  - recon.waf*
+  - recon.subdomain*     # subdomains are out of scope
+
+# The program's focus areas (flagged so you prioritize them).
+focus_findings:
+  - web.sqli
+  - web.xss*
+  - web.fileupload
+  - api.*
+
+notes: >
+  Rewards target XSS/CSRF/SQLi/authn/authz/RCE and Docker-container-escape to the
+  host. This automated pass is RECON + low-hanging detection only — the high-value
+  bugs (container escape, RCE) require manual research and a written PoC. No
+  AI-generated/low-effort reports.

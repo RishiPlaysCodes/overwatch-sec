@@ -48,6 +48,7 @@ class Assessment:
     plan: dict = field(default_factory=dict)
     detection: dict = field(default_factory=dict)   # purple-team detection verification
     social: dict = field(default_factory=dict)      # social-engineering simulation metrics
+    program: str = ""                               # program-config summary (bug bounty)
     scan_id: str = ""
 
     def to_dict(self) -> dict:
@@ -64,6 +65,7 @@ class Assessment:
             "out_of_scope_dropped": self.out_of_scope_dropped,
             "detection": self.detection,
             "social": self.social,
+            "program": self.program,
             "scan_id": self.scan_id,
             "coverage": self.coverage.summary() if self.coverage else {},
         }
@@ -125,7 +127,7 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         identity_file: str | None = None, threat_file: str | None = None,
         ioc_file: str | None = None, telemetry_file: str | None = None,
         scan_id: str | None = None, se_file: str | None = None,
-        load_test: bool = False) -> Assessment:
+        load_test: bool = False, program_file: str | None = None) -> Assessment:
     # extensibility: load drop-in plugins before detection/registry use
     if load_plugins:
         try:
@@ -136,7 +138,25 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
     policy = policy or Policy.for_profile(profile, mode)
     desc = detect(target)
     kind = force_kind or desc["kind"]
-    scope = scope or (Scope.from_file(scope_file) if scope_file else Scope.single(target))
+
+    # program config: sets required headers + rate limit + scope + OOS finding rules
+    program = None
+    if program_file:
+        try:
+            from . import program as _prog
+            program = _prog.load(program_file)
+            if program:
+                _prog.apply_to_request_context(program)   # headers + throttle on ALL traffic
+        except Exception:
+            program = None
+
+    if scope is None:
+        if program and not program.scope.is_empty():
+            scope = program.scope
+        elif scope_file:
+            scope = Scope.from_file(scope_file)
+        else:
+            scope = Scope.single(target)
     scanner_mod = KIND_TO_SCANNER.get(kind, "scanner_web")
 
     cov = cov_mod.Coverage()
@@ -154,9 +174,12 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
     except Exception:
         pass
 
+    _program_obj = program  # keep ref for the loop below
     assessment = Assessment(target=target, kind=kind, profile=profile, mode=mode,
                             policy=policy, scope=scope, scanner=scanner_mod, coverage=cov)
     assessment.plan = build_plan(target, profile, mode, policy)
+    if program:
+        assessment.program = program.summary()
 
     # checkpoint (progress is persisted so a crash doesn't lose everything)
     from .checkpoint import Checkpoint, new_scan_id
@@ -227,6 +250,14 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         if secrets:
             from .policy import redact
             f.evidence = redact(f.evidence, secrets)
+        # program rules: mark finding types the program declares out-of-scope /
+        # not-rewarded so they don't pollute the actionable results (kept, labelled).
+        if program:
+            if program.is_out_of_scope_finding(f.id):
+                f.status = "accepted_risk"     # excluded from score/gating, shown separately
+                f.tags.append("program:out-of-scope")
+            elif program.is_focus_finding(f.id):
+                f.tags.append("program:focus")
         findings.append(f)
     findings = dedupe(findings)
 
