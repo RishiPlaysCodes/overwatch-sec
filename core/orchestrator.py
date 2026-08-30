@@ -115,7 +115,9 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         policy: Policy | None = None, scope: Scope | None = None,
         outdir: str = "report", scope_file: str | None = None,
         secrets: list[str] | None = None, force_kind: str | None = None,
-        triage_store=None, load_plugins: bool = True) -> Assessment:
+        triage_store=None, load_plugins: bool = True,
+        identity_file: str | None = None, threat_file: str | None = None,
+        ioc_file: str | None = None) -> Assessment:
     # extensibility: load drop-in plugins before detection/registry use
     if load_plugins:
         try:
@@ -175,12 +177,16 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
         else:
             cov.tools_executed.append(t.get("tool", "?"))
 
+    # scope only applies to network-facing targets; local artifacts (code/cloud
+    # IaC dir / container image / k8s manifests / mobile files) have no "scope".
+    scope_enforced = kind in ("recon", "web", "api", "network") or (kind == "cloud" and target in ("aws", "azure", "gcp"))
+
     # normalize + scope-enforce findings
     findings: list[Finding] = []
     for d in raw.get("findings", []):
         asset = d.get("asset") or _guess_asset(d, target)
         f = Finding.from_legacy(d, asset=asset, profile=profile)
-        if scope and asset and not scope.allows(asset):
+        if scope_enforced and scope and asset and not scope.allows(asset):
             assessment.out_of_scope_dropped.append(asset)
             continue
         # redact any operator secrets from evidence before it is ever stored
@@ -188,6 +194,28 @@ def run(target: str, profile: str = "bugbounty", mode: str = "fast",
             from .policy import redact
             f.evidence = redact(f.evidence, secrets)
         findings.append(f)
+    findings = dedupe(findings)
+
+    # optional: identity/AD/cloud attack-path analysis from an authorized export
+    if identity_file:
+        try:
+            from attack_paths import identity
+            idf = identity.load_and_analyze(identity_file)
+            findings += idf
+            cov.ran("identity_analysis", detail=f"{len(idf)} escalation path(s)")
+        except Exception as e:
+            cov.errored("identity_analysis", detail=str(e)[:150])
+
+    # optional: threat-detection from an authorized host/cloud data export (+ IOC feed)
+    if threat_file:
+        try:
+            from threat_detection import detector
+            tf = detector.load_and_analyze(threat_file, ioc_file)
+            findings += tf
+            cov.ran("threat_detection", detail=f"{len(tf)} indicator(s)")
+        except Exception as e:
+            cov.errored("threat_detection", detail=str(e)[:150])
+
     findings = dedupe(findings)
 
     # safe, policy-gated validation (upgrades detected -> validated / not_exploitable)

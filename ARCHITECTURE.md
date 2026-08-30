@@ -54,6 +54,11 @@ correlates attack paths, and produces industry-grade reports.
 | `validation.confidence` | Confidence/validation-state transitions. |
 | `core.triage` | **Persistent triage** store (fingerprint→status) applied across scans; mutes false-positives/fixed. |
 | `core.plugins` | **Plugin loader**: `plugins/*.py` register scanners / MITRE maps / validators / objectives / tools without touching core. |
+| `scanner_api` | Dedicated **OWASP API Security** checks (no-auth, CORS, verbs, GraphQL introspection, exposed docs). |
+| `scanner_kubernetes` | Static **K8s manifest audit** (privileged, hostPath, wildcard RBAC, hostNetwork, missing NetworkPolicy) + tool hooks. |
+| `attack_paths.identity` | **AD/cloud identity attack paths** from an authorized export (BloodHound-style); principal→crown-jewel privesc/lateral chains → MITRE. |
+| `threat_detection.detector` | Classify signals (vuln/misconfig/**threat_indicator**/**active_compromise**); IOC matching from authorized host/cloud exports. Strict epistemics. |
+| `reporting.pdf` | PDF output: best-effort html→pdf, else a dependency-free built-in text PDF. |
 
 ## Design decisions
 

@@ -116,6 +116,22 @@ def write_markdown(assessment, path: str) -> str:
     if any(f.kev for f in fs):
         L.append("> ⚠️ **Patch first:** findings tied to actively-exploited CVEs (CISA KEV) below.\n")
 
+    # indicator classification (vuln / misconfig / threat indicator / active compromise)
+    try:
+        from threat_detection.detector import classify
+        cls = classify(fs)
+        if cls.get("threat_indicator") or cls.get("active_compromise_indicator"):
+            L.append("## Indicators\n")
+            L.append(f"- Vulnerabilities: {cls['vulnerability']} | Misconfigurations: {cls['misconfiguration']} "
+                     f"| Threat indicators: {cls['threat_indicator']} "
+                     f"| **Active-compromise indicators: {cls['active_compromise_indicator']}**")
+            if cls["active_compromise_indicator"]:
+                L.append("\n> 🚨 **Active-compromise indicators present** — investigate immediately "
+                         "(these are indicators to triage, not a definitive breach conclusion).")
+            L.append("")
+    except Exception:
+        pass
+
     L.append("## Attack paths\n")
     if not assessment.attack_paths:
         L.append("_No multi-step attack paths correlated._\n")
@@ -302,6 +318,20 @@ def write_all(assessment, outdir: str, formats=("md", "json", "csv", "html")) ->
         paths["csv"] = write_csv(assessment, os.path.join(outdir, "report.csv"))
     if "md" in formats:
         paths["md"] = write_markdown(assessment, os.path.join(outdir, "report.md"))
+    html_path = None
     if "html" in formats:
-        paths["html"] = write_html(assessment, os.path.join(outdir, "report.html"))
+        html_path = write_html(assessment, os.path.join(outdir, "report.html"))
+        paths["html"] = html_path
+    if "pdf" in formats:
+        from . import pdf as _pdf
+        # render the HTML if we have it (best fidelity), else built-in text PDF
+        if html_path is None:
+            html_path = write_html(assessment, os.path.join(outdir, "_tmp_report.html"))
+            paths["pdf"] = _pdf.write_pdf(assessment, os.path.join(outdir, "report.pdf"), html_path)
+            try:
+                os.remove(html_path)
+            except OSError:
+                pass
+        else:
+            paths["pdf"] = _pdf.write_pdf(assessment, os.path.join(outdir, "report.pdf"), html_path)
     return paths

@@ -180,6 +180,13 @@ def main() -> int:
     ap.add_argument("--mark", default=None,
                     help="record a triage decision: 'FINGERPRINT=STATUS[:note]' (needs --triage-file)")
     ap.add_argument("--no-plugins", action="store_true", help="disable plugin loading")
+    # Phase 3: identity + threat analysis from authorized data exports
+    ap.add_argument("--identity-file", dest="identity_file", default=None,
+                    help="identity graph export (JSON) for AD/cloud privilege-escalation analysis")
+    ap.add_argument("--threat-input", dest="threat_file", default=None,
+                    help="authorized host/cloud data export (JSON) for threat-indicator detection")
+    ap.add_argument("--ioc-file", dest="ioc_file", default=None,
+                    help="IOC feed (JSON: hashes/domains/ips) used with --threat-input")
     # meta
     ap.add_argument("--yes", action="store_true", help="skip authorization prompt (owned assets/CI)")
     ap.add_argument("--dry-run", action="store_true", help="show the planned pipeline, run nothing")
@@ -281,7 +288,8 @@ def main() -> int:
     assessment = run_assessment(
         target, profile=profile, mode=mode, policy=policy,
         outdir=outdir, scope_file=args.scope, secrets=secrets, force_kind=args.force_kind,
-        triage_store=triage_store, load_plugins=not args.no_plugins)
+        triage_store=triage_store, load_plugins=not args.no_plugins,
+        identity_file=args.identity_file, threat_file=args.threat_file, ioc_file=args.ioc_file)
 
     # reports
     from reporting import report as report_mod

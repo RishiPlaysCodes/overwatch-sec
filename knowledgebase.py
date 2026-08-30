@@ -490,6 +490,112 @@ KB: dict[str, dict] = {
         "obfuscate.",
         "patch": "Keep WAF rules tuned and updated; do not rely on it as the only control (defense in depth).",
     },
+
+    # ============================ API (OWASP API Security Top 10) ==========
+    "api.no_auth": {
+        "cwe": "CWE-306",
+        "owasp": "API2:2023 Broken Authentication",
+        "severity": "high",
+        "title": "API endpoint reachable without authentication",
+        "description": "An API endpoint returned data/functionality without requiring credentials.",
+        "attack": "Attacker calls the endpoint directly (no token) to read or modify data — the classic broken-"
+        "authentication / missing-authZ API bug.",
+        "patch": "Require authentication on every non-public endpoint; enforce authorization server-side per object "
+        "(prevent BOLA/IDOR); deny by default.",
+    },
+    "api.cors": {
+        "cwe": "CWE-942",
+        "owasp": "API8:2023 Security Misconfiguration",
+        "severity": "medium",
+        "title": "Overly permissive CORS",
+        "description": "The API reflects arbitrary Origins or allows credentials with a wildcard origin.",
+        "attack": "A malicious site makes credentialed cross-origin requests and reads the responses, exfiltrating "
+        "the victim's API data.",
+        "patch": "Allow-list specific trusted origins; never combine `Access-Control-Allow-Origin: *` with "
+        "`Allow-Credentials: true`.",
+    },
+    "api.verb": {
+        "cwe": "CWE-650",
+        "owasp": "API8:2023 Security Misconfiguration",
+        "severity": "low",
+        "title": "Dangerous HTTP methods enabled",
+        "description": "The endpoint advertises state-changing methods (PUT/DELETE/TRACE) via OPTIONS/Allow.",
+        "attack": "Attacker uses an unexpected verb to modify/delete resources or leverages TRACE for XST.",
+        "patch": "Disable unused methods; restrict PUT/DELETE to authenticated, authorized callers; disable TRACE.",
+    },
+    "api.graphql_introspection": {
+        "cwe": "CWE-200",
+        "owasp": "API8:2023 Security Misconfiguration",
+        "severity": "medium",
+        "title": "GraphQL introspection enabled",
+        "description": "The GraphQL endpoint answers introspection queries, exposing the full schema.",
+        "attack": "Attacker downloads the schema to map every type/mutation, accelerating discovery of sensitive "
+        "queries and injection points.",
+        "patch": "Disable introspection in production; enforce auth, depth/complexity limits, and field-level "
+        "authorization.",
+    },
+    "api.docs_exposed": {
+        "cwe": "CWE-200",
+        "owasp": "API9:2023 Improper Inventory Management",
+        "severity": "low",
+        "title": "API documentation / spec exposed",
+        "description": "A Swagger/OpenAPI/GraphQL doc endpoint is publicly reachable.",
+        "attack": "Attacker reads the spec to enumerate every endpoint, parameter, and auth requirement — a recon "
+        "goldmine.",
+        "patch": "Restrict docs to authenticated internal users or non-production; keep an accurate API inventory.",
+    },
+
+    # ============================ KUBERNETES (CIS / NSA-CISA) ==============
+    "k8s.privileged": {
+        "cwe": "CWE-250",
+        "owasp": "Cloud: Security Misconfiguration",
+        "severity": "high",
+        "title": "Privileged container",
+        "description": "A workload runs with `securityContext.privileged: true` (or allowPrivilegeEscalation).",
+        "attack": "A compromised privileged container has near-host capabilities — attacker escapes to the node and "
+        "pivots across the cluster.",
+        "patch": "Set `privileged: false`, `allowPrivilegeEscalation: false`, drop capabilities, and enforce via "
+        "Pod Security Admission / policy.",
+    },
+    "k8s.hostpath": {
+        "cwe": "CWE-552",
+        "owasp": "Cloud: Security Misconfiguration",
+        "severity": "high",
+        "title": "hostPath volume mount",
+        "description": "A pod mounts a path from the host filesystem.",
+        "attack": "Attacker in the pod reads/writes host files (e.g. mounts `/` or docker socket) to escape to the "
+        "node and take over the host.",
+        "patch": "Avoid hostPath; use PVCs/ephemeral volumes; forbid hostPath via admission policy.",
+    },
+    "k8s.rbac_wildcard": {
+        "cwe": "CWE-269",
+        "owasp": "A01:2021 Broken Access Control",
+        "severity": "high",
+        "title": "Wildcard RBAC permissions",
+        "description": "A Role/ClusterRole grants `*` verbs or resources (admin-equivalent).",
+        "attack": "If a bound service account is compromised, the attacker gains cluster-admin — full workload and "
+        "secret access, lateral movement everywhere.",
+        "patch": "Apply least-privilege RBAC (explicit verbs/resources); avoid `cluster-admin` bindings; audit with "
+        "`kubectl auth can-i`.",
+    },
+    "k8s.no_netpol": {
+        "cwe": "CWE-668",
+        "owasp": "Cloud: Security Misconfiguration",
+        "severity": "medium",
+        "title": "No NetworkPolicy (flat pod network)",
+        "description": "Namespace workloads have no NetworkPolicy, so any pod can talk to any pod.",
+        "attack": "After compromising one pod, the attacker moves laterally to every other service unrestricted.",
+        "patch": "Adopt default-deny NetworkPolicies and allow-list only required flows.",
+    },
+    "k8s.hostnet": {
+        "cwe": "CWE-668",
+        "owasp": "Cloud: Security Misconfiguration",
+        "severity": "medium",
+        "title": "hostNetwork / hostPID / hostIPC enabled",
+        "description": "A pod shares the host network/PID/IPC namespace.",
+        "attack": "Attacker sniffs node traffic, sees host processes, and bypasses network segmentation.",
+        "patch": "Disable hostNetwork/hostPID/hostIPC unless strictly required; enforce via admission policy.",
+    },
 }
 
 

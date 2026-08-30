@@ -48,6 +48,26 @@ TECHNIQUE_MAP = {
     "web.header":          ("T1595", "Active Scanning", "reconnaissance"),
     "web.infoleak":        ("T1592", "Gather Victim Host Information", "reconnaissance"),
     "recon.dir_listing":   ("T1083", "File and Directory Discovery", "discovery"),
+    # API
+    "api.no_auth":         ("T1190", "Exploit Public-Facing Application", "initial-access"),
+    "api.cors":            ("T1189", "Drive-by Compromise", "initial-access"),
+    "api.graphql_introspection": ("T1592", "Gather Victim Host Information", "reconnaissance"),
+    "api.docs_exposed":    ("T1592", "Gather Victim Host Information", "reconnaissance"),
+    # Kubernetes
+    "k8s.privileged":      ("T1611", "Escape to Host", "privilege-escalation"),
+    "k8s.hostpath":        ("T1611", "Escape to Host", "privilege-escalation"),
+    "k8s.rbac_wildcard":   ("T1078", "Valid Accounts", "privilege-escalation"),
+    "k8s.hostnet":         ("T1040", "Network Sniffing", "credential-access"),
+    "k8s.no_netpol":       ("T1210", "Exploitation of Remote Services", "lateral-movement"),
+    # identity
+    "identity.escalation_path": ("T1078", "Valid Accounts", "privilege-escalation"),
+    # threat detection
+    "threat.malicious_process": ("T1059", "Command and Scripting Interpreter", "execution"),
+    "threat.c2_connection":     ("T1071", "Application Layer Protocol", "command-and-control"),
+    "threat.persistence":       ("T1053", "Scheduled Task/Job", "persistence"),
+    "threat.unexpected_admin":  ("T1136", "Create Account", "persistence"),
+    "threat.suspicious_listener": ("T1571", "Non-Standard Port", "command-and-control"),
+    "threat.risky_access_key":  ("T1078", "Valid Accounts", "persistence"),
 }
 
 # rough tactic ordering for path layout (kill-chain)

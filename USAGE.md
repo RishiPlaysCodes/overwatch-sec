@@ -81,6 +81,34 @@ python3 vulnscan.py example.com --triage-file triage.json
 ```
 Statuses: `open`, `validated`, `false_positive`, `accepted_risk`, `fixed`, `retest_required`.
 
+## Identity & threat analysis (from authorized data exports)
+
+These analyze data **you export** from systems you're authorized to inspect —
+no live AD/cloud attacks, no host access.
+
+```bash
+# AD/cloud privilege-escalation + lateral paths from an identity graph export
+python3 vulnscan.py corp.example --profile redteam --identity-file identity.json
+
+# threat indicators from a host/cloud export (+ optional IOC feed)
+python3 vulnscan.py host.example --threat-input host_export.json --ioc-file iocs.json
+```
+
+- `--identity-file` (JSON `nodes`/`edges`): traces principal → crown-jewel
+  escalation paths (BloodHound-style), mapped to MITRE ATT&CK.
+- `--threat-input` + `--ioc-file`: classifies signals as vulnerability /
+  misconfiguration / **threat_indicator** / **active_compromise_indicator**.
+  Active-compromise requires a strong IOC match; weak signals stay "indicator to
+  investigate" (never a definitive breach claim).
+
+## PDF & report formats
+
+```bash
+python3 vulnscan.py example.com --formats md,json,csv,html,pdf
+```
+`pdf` uses `wkhtmltopdf`/`weasyprint` if installed (rich), else a built-in
+dependency-free text PDF so `report.pdf` always exists.
+
 ## Plugins (extend without touching core)
 
 Drop a `plugins/*.py` defining `register(reg)` (see `plugins/README.md`). Loaded

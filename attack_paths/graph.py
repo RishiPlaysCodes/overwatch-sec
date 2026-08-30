@@ -48,6 +48,14 @@ OBJECTIVES = {
     "container.misconfig":      ("Container escape to host", 4, True),
     "recon.exposed_panel":      ("Admin access (if creds obtained)", 3, True),
     "web.cookie":               ("Session hijack", 3, False),
+    "identity.escalation_path": ("Privilege escalation / domain or account compromise", 5, True),
+    "api.no_auth":              ("Unauthenticated API data/function access", 4, True),
+    "api.graphql_introspection":("GraphQL schema / data exposure", 3, False),
+    "k8s.privileged":           ("Container escape to node", 5, True),
+    "k8s.hostpath":             ("Host filesystem access / node takeover", 5, True),
+    "k8s.rbac_wildcard":        ("Cluster-admin takeover", 5, True),
+    "threat.malicious_process": ("Active compromise (host)", 5, True),
+    "threat.c2_connection":     ("Active compromise (C2)", 5, True),
 }
 
 

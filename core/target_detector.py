@@ -95,11 +95,11 @@ def detect(target: str) -> dict:
 KIND_TO_SCANNER = {
     "recon": "scanner_recon",
     "web": "scanner_web",
-    "api": "scanner_web",       # API handled by web scanner (API-aware checks live there)
+    "api": "scanner_api",            # dedicated OWASP API Security checks
     "network": "scanner_network",
     "mobile": "scanner_mobile",
     "cloud": "scanner_cloud",
     "container": "scanner_container",
-    "kubernetes": "scanner_cloud",   # k8s manifests audited via IaC path (extensible)
+    "kubernetes": "scanner_kubernetes",   # dedicated k8s manifest audit
     "code": "scanner_code",
 }
