@@ -1,12 +1,11 @@
 {
-"updated_at":"2026-09-02T09:41:29.466068+00:00",
+"updated_at":"2026-09-03T09:54:36.501803+00:00",
 "kev":{
 "status":"ok",
-"count":1687
+"count":1694
 },
 "nvd":{
-"status":"ok",
-"count":7644,
-"window_days":7
+"status":"failed",
+"error":"HTTPSConnectionPool(host='services.nvd.nist.gov', port=443): Read timed out. (read timeout=40)"
 }
 }
