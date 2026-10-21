@@ -1,12 +1,11 @@
 {
-"updated_at":"2026-10-20T10:07:36.746704+00:00",
+"updated_at":"2026-10-21T10:14:47.131013+00:00",
 "kev":{
 "status":"ok",
-"count":1748
+"count":1754
 },
 "nvd":{
-"status":"ok",
-"count":26536,
-"window_days":7
+"status":"failed",
+"error":"Response ended prematurely"
 }
 }
