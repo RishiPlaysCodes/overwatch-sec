@@ -1,12 +1,12 @@
 {
-"updated_at":"2026-11-10T13:30:46.285161+00:00",
+"updated_at":"2026-11-11T12:45:37.676344+00:00",
 "kev":{
 "status":"ok",
-"count":1773
+"count":1779
 },
 "nvd":{
 "status":"ok",
-"count":13181,
+"count":14009,
 "window_days":7
 }
 }
