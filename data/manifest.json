@@ -1,11 +1,12 @@
 {
-"updated_at":"2026-11-15T12:47:31.317458+00:00",
+"updated_at":"2026-11-16T13:43:14.580186+00:00",
 "kev":{
 "status":"ok",
 "count":1781
 },
 "nvd":{
-"status":"failed",
-"error":"503 Server Error: Service Unavailable for url: https://services.nvd.nist.gov/rest/json/cves/2.0?lastModStartDate=2026-11"
+"status":"ok",
+"count":10300,
+"window_days":7
 }
 }
